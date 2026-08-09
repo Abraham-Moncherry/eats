@@ -6,6 +6,7 @@ import { ArrowLeft, CaretDown, CaretUp, Copy, ForkKnife, MagnifyingGlass, Pencil
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import IngredientCapture from "./ingredient-capture";
+import EatsLoader from "../eats-loader";
 
 type Ingredient = { id:string; name:string; brand:string|null; barcode:string|null; serving_amount:number; serving_unit:string; calories:number; protein:number; carbohydrates:number; fat:number };
 type MealItem = { id:string; amount:number; unit:string; ingredient:Ingredient };
@@ -51,7 +52,7 @@ export default function LibraryPage() {
   const sortedRoutines=useMemo(()=>[...routines].sort((a,b)=>(routineScores[b.name]||Number(b.suggested_period===periodNow()))-(routineScores[a.name]||Number(a.suggested_period===periodNow()))),[routines,routineScores]);
   async function logRoutine(routine:Routine){ if(!supabase||!user)return;const entryDate=routineDates[routine.id]||today();setMessage("Adding routine…"); const rows=routine.meals.map(({meal,quantity})=>{const n=mealMacros(meal);return {user_id:user.id,name:meal.name,meal:categoryForRoutine(routine),meal_name:meal.name,routine_name:routine.name,entry_date:entryDate,calories:round(n.calories*quantity),protein:round(n.protein*quantity),carbohydrates:round(n.carbohydrates*quantity),fat:round(n.fat*quantity),snapshot:{routine:routine.name,meal:meal.name,quantity,ingredients:meal.items}}}); const {error}=await supabase.from("food_entries").insert(rows); setMessage(error?error.message:`Added ${routine.name} to ${entryDate===today()?"today":entryDate}`); }
   async function logMeal(meal:Meal){if(!supabase||!user)return;const entryDate=mealDates[meal.id]||today(),n=mealMacros(meal);setMessage("Adding meal…");const {error}=await supabase.from("food_entries").insert({user_id:user.id,name:meal.name,meal:logMealCategory(),meal_name:meal.name,entry_date:entryDate,calories:round(n.calories),protein:round(n.protein),carbohydrates:round(n.carbohydrates),fat:round(n.fat),snapshot:{meal:meal.name,quantity:1,ingredients:meal.items}});setMessage(error?error.message:`Added ${meal.name} to ${entryDate===today()?"today":entryDate}`)}
-  if(loading)return <div className="loading"><img className="brand-logo large" src="/eats-logo.png" alt="eats"/><p>Loading your food library…</p></div>;
+  if(loading)return <div className="loading"><EatsLoader/></div>;
   if(!user)return <main className="library-page"><Link href="/" className="back-link"><ArrowLeft/> Sign in</Link><div className="library-empty"><h1>Sign in first</h1><p>Your food library is private to your account.</p></div></main>;
   return <main className="library-page">
     <header><Link href="/" className="back-link"><ArrowLeft/> Today</Link><div className="brand"><img className="brand-logo" src="/eats-logo.png" alt=""/><span>eats</span></div></header>

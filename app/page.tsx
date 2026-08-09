@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ArrowRight, CalendarBlank, CaretDown, CaretUp, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
 import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import EatsLoader from "./eats-loader";
 
 type EntryIngredient = { id?:string; amount:number; unit:string; ingredient?:{name?:string;brand?:string|null} };
 type Entry = { id: string; name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; date: string; createdAt: number; snapshot?:{quantity?:number;ingredients?:EntryIngredient[]}|null };
@@ -104,7 +105,7 @@ export default function Home() {
     setGoals(next); setShowSettings(false);
   }
 
-  if (!ready) return <div className="loading"><img className="brand-logo large" src="/eats-logo.png" alt="eats" /><p>Loading your log…</p></div>;
+  if (!ready) return <div className="loading"><EatsLoader /></div>;
   if (!isSupabaseConfigured) return <SetupNeeded />;
   if (!user) return <AuthScreen />;
 
