@@ -115,14 +115,17 @@ Set `NEXT_PUBLIC_SITE_URL` to the final production URL and add that URL to Supab
 
 After deployment, open Eats in Safari, tap **Share**, select **Add to Home Screen**, and tap **Add**.
 
-## Planned ChatGPT connection
+## ChatGPT connection (MCP)
 
-The ChatGPT work is intentionally scheduled after the main app is finished and deployed. The plan is to add a private Eats MCP server to this same Next.js/Vercel project.
+Eats now includes a private, read-only MCP server at `/mcp`. It uses the signed-in user's temporary Supabase access token and the same Row Level Security policies as the web app. It does not use a Supabase secret key.
 
-Initial ChatGPT tools will include:
+Current tools:
 
 - View daily totals and food logs
 - List saved meals and routines
+
+Planned write tools after the read-only tools have been tested:
+
 - Log a saved meal to a selected date
 - Log a saved routine to a selected date
 
@@ -133,10 +136,12 @@ ChatGPT will never receive a Supabase secret key or unrestricted database access
 Deployment is not required for initial MCP development:
 
 1. Run Eats locally.
-2. Test the local `/mcp` route with MCP Inspector.
-3. Test tool inputs, outputs, authentication, and Supabase writes locally.
-4. Use ngrok when ChatGPT itself needs to reach the local server over HTTPS.
-5. Deploy to Vercel only after the local tools work correctly.
+2. Sign in to Eats and open `http://localhost:3000/mcp-test`.
+3. Copy the temporary test token.
+4. Test the local `/mcp` route with MCP Inspector.
+5. Test tool inputs, outputs, and authentication locally.
+6. Use ngrok when ChatGPT itself needs to reach the local server over HTTPS.
+7. Deploy to Vercel only after the local tools work correctly.
 
 Planned local commands:
 
@@ -146,7 +151,11 @@ npx @modelcontextprotocol/inspector@latest
 ngrok http 3000
 ```
 
-The future local MCP URL will be `http://localhost:3000/mcp`. Through ngrok it will be `https://YOUR-NGROK-DOMAIN/mcp`. The `/mcp` route has not been implemented yet.
+In Inspector, use Streamable HTTP with URL `http://localhost:3000/mcp`. Add an `Authorization` header whose value is `Bearer YOUR_COPIED_TOKEN`. Through ngrok, the endpoint is `https://YOUR-NGROK-DOMAIN/mcp`.
+
+The copied token is temporary and should be treated like a password. Do not commit or share it. If Inspector reports that it expired, revisit `/mcp-test` and copy a fresh token.
+
+Connecting the deployed server directly to ChatGPT will require an OAuth account-linking layer. That production step is intentionally deferred until the app and local MCP tools are working.
 
 ## Security
 
