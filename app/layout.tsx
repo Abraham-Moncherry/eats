@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "eats" },
   formatDetection: { telephone: false },
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/eats-logo.png", apple: "/eats-logo.png" },
+  icons: { icon: "/eats-logo-dark.png", apple: "/eats-logo-dark.png" },
 };
 
 export const viewport: Viewport = {
