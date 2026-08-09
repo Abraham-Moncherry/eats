@@ -20,6 +20,17 @@ In Supabase, open **Authentication → URL Configuration** and set:
 
 The app uses passwordless magic links. Entering a new email creates its account; returning users receive a single-use sign-in link.
 
+## Test accounts
+
+No test account is created automatically. To make one without needing another Gmail inbox, sign in with a plus alias:
+
+```text
+Real account: yourname@gmail.com
+Test account: yourname+eats-test@gmail.com
+```
+
+The magic link for the test account arrives in the normal `yourname@gmail.com` inbox, but Supabase treats the alias as a separate user with completely separate food entries and goals. Replace `yourname@gmail.com` with your actual address. If your email provider does not support plus aliases, use another email inbox you can access.
+
 ## Deploy to Vercel
 
 Import this repository in Vercel and keep the detected Next.js defaults. Add `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and `NEXT_PUBLIC_SITE_URL` under **Project Settings → Environment Variables**. Set `NEXT_PUBLIC_SITE_URL` to the final production URL.
