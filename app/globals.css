@@ -45,6 +45,7 @@ header { display:flex; align-items:center; justify-content:space-between; }
 .protein-card p { color:#afb0a8; margin:0; font-size:12px; }
 .other-macros{display:flex;gap:14px;margin-top:18px;padding-top:14px;border-top:1px solid #383a34}.other-macros span{display:flex;flex-direction:column;font-size:10px}.other-macros strong{font:700 14px "Manrope";color:#fff;letter-spacing:0}
 .log-section { margin-top:34px; }
+.meal-groups{display:flex;flex-direction:column;gap:27px}.meal-group-heading{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:9px;padding:0 2px}.meal-group-heading h2{margin:0;font-size:17px}.meal-group-heading span{color:var(--muted);font-size:10px;font-weight:600}
 .section-heading { display:flex; align-items:flex-end; justify-content:space-between; margin-bottom:14px; }
 h1,h2 { margin:4px 0 0; font-family:"Manrope"; letter-spacing:-1px; }
 h1 { font-size:25px; }

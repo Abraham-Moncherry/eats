@@ -80,6 +80,7 @@ export default function Home() {
   }, [user]);
 
   const dayEntries = useMemo(() => entries.filter((entry) => entry.date === date).sort((a, b) => b.createdAt - a.createdAt), [entries, date]);
+  const groupedDayEntries = useMemo(() => [...meals,...new Set(dayEntries.map(entry=>entry.meal).filter(category=>!meals.includes(category)))].map(category=>({category,entries:dayEntries.filter(entry=>entry.meal===category)})).filter(group=>group.entries.length), [dayEntries]);
   const totals = dayEntries.reduce((sum, entry) => ({ calories: sum.calories + entry.calories, protein: sum.protein + entry.protein, carbohydrates: sum.carbohydrates + entry.carbohydrates, fat: sum.fat + entry.fat }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
   async function addEntry(entry: Omit<Entry, "id" | "createdAt">) {
@@ -142,12 +143,12 @@ export default function Home() {
         {error && <div className="error-banner">{error}</div>}
         <div className="section-heading"><div><span className="eyebrow">Food log</span><h1>What you ate</h1></div><button className="add-small" onClick={() => setShowAdd(true)}><Plus weight="bold" /> Add food</button></div>
         {dayEntries.length ? (
-          <div className="entry-list">{dayEntries.map((entry) => {const open=expandedEntry===entry.id;const quantity=Number(entry.snapshot?.quantity||1);return (
-            <article className={`entry${open?" expanded":""}`} key={entry.id}>
-              <div className="entry-row"><button className="entry-main" onClick={()=>setExpandedEntry(open?null:entry.id)} aria-expanded={open}><div className="meal-dot" data-meal={entry.meal}/><div className="entry-name"><strong>{entry.name}</strong><span>{entry.meal} · {entry.protein}g protein</span></div><strong className="entry-kcal">{entry.calories}<small> kcal</small></strong>{open?<CaretUp/>:<CaretDown/>}</button><button className="delete-btn" onClick={()=>setPendingDelete(entry)} aria-label={`Delete ${entry.name}`}><Trash/></button></div>
-              {open&&<div className="entry-details"><div className="entry-macros"><span><strong>{entry.calories}</strong><small>kcal</small></span><span><strong>{entry.protein}g</strong><small>protein</small></span><span><strong>{entry.carbohydrates}g</strong><small>carbs</small></span><span><strong>{entry.fat}g</strong><small>fat</small></span></div>{entry.snapshot?.ingredients?.length?<div className="entry-ingredients"><span className="eyebrow">What was in this meal</span>{entry.snapshot.ingredients.map((item,index)=><div key={item.id||index}><span>{item.ingredient?.brand?`${item.ingredient.brand} `:""}{item.ingredient?.name||"Ingredient"}</span><strong>{Number(item.amount)*quantity} {item.unit}</strong></div>)}</div>:<p className="entry-no-breakdown">No ingredient breakdown was saved for this quick entry.</p>}</div>}
-            </article>
-          )})}</div>
+          <div className="meal-groups">{groupedDayEntries.map(group=><section className="meal-group" key={group.category}><div className="meal-group-heading"><h2>{group.category}</h2><span>{group.entries.length} {group.entries.length===1?"item":"items"} · {Math.round(group.entries.reduce((sum,entry)=>sum+entry.calories,0))} kcal</span></div><div className="entry-list">{group.entries.map((entry) => {const open=expandedEntry===entry.id;const quantity=Number(entry.snapshot?.quantity||1);return (
+              <article className={`entry${open?" expanded":""}`} key={entry.id}>
+                <div className="entry-row"><button className="entry-main" onClick={()=>setExpandedEntry(open?null:entry.id)} aria-expanded={open}><div className="meal-dot" data-meal={entry.meal}/><div className="entry-name"><strong>{entry.name}</strong><span>{entry.protein}g protein</span></div><strong className="entry-kcal">{entry.calories}<small> kcal</small></strong>{open?<CaretUp/>:<CaretDown/>}</button><button className="delete-btn" onClick={()=>setPendingDelete(entry)} aria-label={`Delete ${entry.name}`}><Trash/></button></div>
+                {open&&<div className="entry-details"><div className="entry-macros"><span><strong>{entry.calories}</strong><small>kcal</small></span><span><strong>{entry.protein}g</strong><small>protein</small></span><span><strong>{entry.carbohydrates}g</strong><small>carbs</small></span><span><strong>{entry.fat}g</strong><small>fat</small></span></div>{entry.snapshot?.ingredients?.length?<div className="entry-ingredients"><span className="eyebrow">What was in this meal</span>{entry.snapshot.ingredients.map((item,index)=><div key={item.id||index}><span>{item.ingredient?.brand?`${item.ingredient.brand} `:""}{item.ingredient?.name||"Ingredient"}</span><strong>{Number(item.amount)*quantity} {item.unit}</strong></div>)}</div>:<p className="entry-no-breakdown">No ingredient breakdown was saved for this quick entry.</p>}</div>}
+              </article>
+            )})}</div></section>)}</div>
         ) : (
           <div className="empty"><span><ClockCounterClockwise /></span><h2>Nothing logged yet</h2><p>Add your first meal and your daily totals will show up here.</p><button className="primary" onClick={() => setShowAdd(true)}><Plus weight="bold" /> Log your first food</button></div>
         )}
