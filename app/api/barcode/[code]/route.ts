@@ -9,7 +9,7 @@ export async function GET(
 
   try {
     const response = await fetch(
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}?fields=code,product_name,brands,serving_size,nutriments`,
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(code)}?fields=code,product_name,brands,serving_size,serving_quantity,nutrition_data_per,nutriments`,
       {
         cache: "no-store",
         headers: { "User-Agent": "eats/0.1 personal nutrition tracker" },
