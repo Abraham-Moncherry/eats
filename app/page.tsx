@@ -61,7 +61,9 @@ export default function Home() {
 
   useEffect(() => {
     if (!supabase) { setReady(true); return; }
-    supabase.auth.getUser().then(({ data }) => { setUser(data.user); setReady(true); });
+    // getSession reads the stored session (refreshing it only if needed) so a flaky
+    // connection never bounces a signed-in device back to the sign-in screen.
+    supabase.auth.getSession().then(({ data }) => { setUser(data.session?.user ?? null); setReady(true); });
     const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
     return () => data.subscription.unsubscribe();
   }, []);
@@ -201,16 +203,32 @@ function Settings({ goals, email, onClose, onSave }: { goals: Goals; email: stri
 
 function AuthScreen() {
   const [email, setEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [sent, setSent] = useState(false);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  async function submit(event: React.FormEvent) {
+  async function sendEmail(event: React.FormEvent) {
     event.preventDefault(); if (!supabase) return; setBusy(true); setMessage("");
     const result = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: getSiteUrl(), shouldCreateUser: true } });
     setBusy(false);
     if (result.error) setMessage(result.error.message);
-    else setMessage("Magic link sent. Check your email and tap the link to sign in.");
+    else { setSent(true); setMessage("Email sent. Type the code below to sign in right here, or tap the link in the email."); }
   }
-  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>Enter your email and we’ll send you a secure sign-in link. New emails automatically create an account.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="email" required autoFocus placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy}>{busy ? "Sending link…" : "Email me a magic link"}</button></form><p className="magic-note">No password needed. Each link can only be used once.</p></section></main>;
+  // Typing the code signs you in inside this window. On a home screen app that
+  // matters: a tapped link opens the browser instead, which keeps its own session.
+  async function verifyCode(event: React.FormEvent) {
+    event.preventDefault(); if (!supabase) return; setBusy(true); setMessage("");
+    const result = await supabase.auth.verifyOtp({ email, token: code.trim(), type: "email" });
+    setBusy(false);
+    if (result.error) setMessage(result.error.message);
+  }
+  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>{sent ? "We just emailed you a sign-in code and a link. Either one works." : "Enter your email and we’ll send you a secure sign-in code. New emails automatically create an account."}</p>
+    {sent ? (
+      <form onSubmit={verifyCode}><label>Sign-in code<input className="code-input" inputMode="numeric" autoComplete="one-time-code" required autoFocus placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy || !code.trim()}>{busy ? "Checking…" : "Sign in"}</button><button className="mode-switch" type="button" onClick={() => { setSent(false); setCode(""); setMessage(""); }}>Use a different email</button></form>
+    ) : (
+      <form onSubmit={sendEmail}><label>Email<input type="email" autoComplete="email" required autoFocus placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in code"}</button></form>
+    )}
+    <p className="magic-note">No password needed. Once you are in, this device stays signed in until you sign out.</p></section></main>;
 }
 
 function SetupNeeded() {

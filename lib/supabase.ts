@@ -4,7 +4,13 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(url && key);
-export const supabase = isSupabaseConfigured ? createClient(url!, key!) : null;
+// The session is kept in local storage and its access token is refreshed in the
+// background, so a signed-in device stays signed in until it explicitly signs out.
+export const supabase = isSupabaseConfigured
+  ? createClient(url!, key!, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
+    })
+  : null;
 
 export function getSiteUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;

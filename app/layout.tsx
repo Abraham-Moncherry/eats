@@ -8,7 +8,15 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "eats" },
   formatDetection: { telephone: false },
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/eats-logo-white.png", apple: "/eats-logo-white.png" },
+  // The browser tab sits on the browser's own chrome, so the favicon can follow the
+  // colour scheme. The home screen icon cannot, so it uses the opaque tile.
+  icons: {
+    icon: [
+      { url: "/eats-logo.png", media: "(prefers-color-scheme: light)" },
+      { url: "/eats-logo-white.png", media: "(prefers-color-scheme: dark)" },
+    ],
+    apple: "/eats-icon.png",
+  },
 };
 
 export const viewport: Viewport = {
