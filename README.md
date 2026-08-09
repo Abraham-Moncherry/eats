@@ -1,4 +1,4 @@
-# Daily Bite
+# eats
 
 A small, mobile-first calorie and protein tracker built with Next.js and Supabase. Accounts, food entries, and goals sync securely between devices.
 

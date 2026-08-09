@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Daily Bite",
+  title: "eats",
   description: "A simple daily calorie and protein tracker.",
-  applicationName: "Daily Bite",
-  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "Daily Bite" },
+  applicationName: "eats",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "eats" },
   formatDetection: { telephone: false },
   manifest: "/manifest.webmanifest",
 };

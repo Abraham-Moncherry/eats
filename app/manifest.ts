@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Daily Bite",
-    short_name: "Daily Bite",
+    name: "eats",
+    short_name: "eats",
     description: "A simple daily calorie and protein tracker.",
     start_url: "/",
     display: "standalone",
