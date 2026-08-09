@@ -212,7 +212,7 @@ function AuthScreen() {
     const result = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: getSiteUrl(), shouldCreateUser: true } });
     setBusy(false);
     if (result.error) setMessage(result.error.message);
-    else { setSent(true); setMessage("Email sent. Type the code below to sign in right here, or tap the link in the email."); }
+    else { setSent(true); setMessage("Email sent. Type the code below — the link in the email opens your browser instead."); }
   }
   // Typing the code signs you in inside this window. On a home screen app that
   // matters: a tapped link opens the browser instead, which keeps its own session.
@@ -222,7 +222,7 @@ function AuthScreen() {
     setBusy(false);
     if (result.error) setMessage(result.error.message);
   }
-  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>{sent ? "We just emailed you a sign-in code and a link. Either one works." : "Enter your email and we’ll send you a secure sign-in code. New emails automatically create an account."}</p>
+  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>{sent ? "Type the 6-digit code from the email here. Tapping the link instead signs you in to your browser, which is a separate app to this one." : "Enter your email and we’ll send you a secure sign-in code. New emails automatically create an account."}</p>
     {sent ? (
       <form onSubmit={verifyCode}><label>Sign-in code<input className="code-input" inputMode="numeric" autoComplete="one-time-code" required autoFocus placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy || !code.trim()}>{busy ? "Checking…" : "Sign in"}</button><button className="mode-switch" type="button" onClick={() => { setSent(false); setCode(""); setMessage(""); }}>Use a different email</button></form>
     ) : (
