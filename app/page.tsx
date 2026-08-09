@@ -6,7 +6,7 @@ import { ArrowLeft, ArrowRight, Check, ClockCounterClockwise, Fire, ForkKnife, G
 import type { User } from "@supabase/supabase-js";
 import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-type Entry = { id: string; name: string; calories: number; protein: number; meal: string; date: string; createdAt: number };
+type Entry = { id: string; name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; date: string; createdAt: number };
 type Goals = { calories: number; protein: number };
 
 const meals = ["Breakfast", "Lunch", "Dinner", "Snack"];
@@ -66,21 +66,21 @@ export default function Home() {
     if (!user || !supabase) { setEntries([]); return; }
     setError("");
     Promise.all([
-      supabase.from("food_entries").select("id,name,calories,protein,meal,entry_date,created_at").order("created_at", { ascending: false }),
+      supabase.from("food_entries").select("id,name,calories,protein,carbohydrates,fat,meal,entry_date,created_at").order("created_at", { ascending: false }),
       supabase.from("profiles").select("calorie_goal,protein_goal").eq("user_id", user.id).maybeSingle(),
     ]).then(([foodResult, profileResult]) => {
       if (foodResult.error) { setError(foodResult.error.message); return; }
-      setEntries((foodResult.data ?? []).map((row) => ({ id: row.id, name: row.name, calories: row.calories, protein: row.protein, meal: row.meal, date: row.entry_date, createdAt: new Date(row.created_at).getTime() })));
+      setEntries((foodResult.data ?? []).map((row) => ({ id: row.id, name: row.name, calories: row.calories, protein: row.protein, carbohydrates: Number(row.carbohydrates||0), fat: Number(row.fat||0), meal: row.meal, date: row.entry_date, createdAt: new Date(row.created_at).getTime() })));
       if (profileResult.data) setGoals({ calories: profileResult.data.calorie_goal, protein: profileResult.data.protein_goal });
     });
   }, [user]);
 
   const dayEntries = useMemo(() => entries.filter((entry) => entry.date === date).sort((a, b) => b.createdAt - a.createdAt), [entries, date]);
-  const totals = dayEntries.reduce((sum, entry) => ({ calories: sum.calories + entry.calories, protein: sum.protein + entry.protein }), { calories: 0, protein: 0 });
+  const totals = dayEntries.reduce((sum, entry) => ({ calories: sum.calories + entry.calories, protein: sum.protein + entry.protein, carbohydrates: sum.carbohydrates + entry.carbohydrates, fat: sum.fat + entry.fat }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
   async function addEntry(entry: Omit<Entry, "id" | "createdAt">) {
     if (!supabase || !user) return;
-    const { data, error: insertError } = await supabase.from("food_entries").insert({ user_id: user.id, name: entry.name, calories: entry.calories, protein: entry.protein, meal: entry.meal, entry_date: entry.date }).select("id,created_at").single();
+    const { data, error: insertError } = await supabase.from("food_entries").insert({ user_id: user.id, name: entry.name, calories: entry.calories, protein: entry.protein, carbohydrates: entry.carbohydrates, fat: entry.fat, meal: entry.meal, entry_date: entry.date }).select("id,created_at").single();
     if (insertError) { setError(insertError.message); return; }
     setEntries((current) => [{ ...entry, id: data.id, createdAt: new Date(data.created_at).getTime() }, ...current]);
     setShowAdd(false);
@@ -129,6 +129,7 @@ export default function Home() {
           <div><span>Protein</span><strong>{totals.protein}<small>g</small></strong></div>
           <div className="protein-track"><span style={{ width: `${Math.min((totals.protein / goals.protein) * 100, 100)}%` }} /></div>
           <p>{Math.max(goals.protein - totals.protein, 0)}g left of your {goals.protein}g goal</p>
+          <div className="other-macros"><span><strong>{Math.round(totals.carbohydrates)}g</strong> carbs</span><span><strong>{Math.round(totals.fat)}g</strong> fat</span></div>
         </div>
       </section>
 
@@ -160,16 +161,19 @@ function AddSheet({ date, onClose, onAdd }: { date: string; onClose: () => void;
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
+  const [carbohydrates, setCarbohydrates] = useState("");
+  const [fat, setFat] = useState("");
   const [meal, setMeal] = useState("Breakfast");
   function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!name.trim() || !calories) return;
-    onAdd({ name: name.trim(), calories: Number(calories), protein: Number(protein || 0), meal, date });
+    onAdd({ name: name.trim(), calories: Number(calories), protein: Number(protein || 0), carbohydrates: Number(carbohydrates || 0), fat: Number(fat || 0), meal, date });
   }
   return <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><form className="sheet" onSubmit={submit}>
     <div className="sheet-handle" /><div className="sheet-title"><div><span className="eyebrow">Quick log</span><h2>Add food</h2></div><button type="button" className="icon-btn" onClick={onClose}><X /></button></div>
     <label>What did you eat?<input autoFocus placeholder="e.g. Chicken wrap" value={name} onChange={(e) => setName(e.target.value)} /></label>
     <div className="field-row"><label>Calories<input inputMode="numeric" placeholder="0" min="0" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} /><span>kcal</span></label><label>Protein<input inputMode="numeric" placeholder="0" min="0" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} /><span>grams</span></label></div>
+    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div>
     <fieldset><legend>Meal</legend><div className="meal-picker">{meals.map((item) => <button type="button" className={meal === item ? "active" : ""} onClick={() => setMeal(item)} key={item}>{item}</button>)}</div></fieldset>
     <button className="primary full" type="submit" disabled={!name.trim() || !calories}><Plus weight="bold" /> Add to {prettyDate(date).toLowerCase()}</button>
   </form></div>;
