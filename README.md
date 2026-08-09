@@ -1,5 +1,9 @@
 <p align="center">
-  <img src="public/eats-logo.png" alt="Eats logo" width="120" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="public/eats-logo-white.png" />
+    <source media="(prefers-color-scheme: light)" srcset="public/eats-logo.png" />
+    <img src="public/eats-logo.png" alt="Eats logo" width="120" />
+  </picture>
 </p>
 
 <h1 align="center">eats</h1>
@@ -12,27 +16,12 @@ A mobile-first calorie and macro tracker built with Next.js and Supabase. It tra
 
 ## Current features
 
-- Passwordless magic-link accounts
-- Daily calorie and macro goals
-- Daily food logging for today or earlier dates
-- Expandable food-log entries with full nutrition and saved ingredient details
-- Confirmation before deleting a food log
-- Calendar history across months and years
-- Ingredient library with brands, serving measurements, and barcode values
-- Full-screen live barcode scanner using Open Food Facts
-- Automatic loading of previously verified barcode nutrition from your library
-- Interchangeable kcal and kJ input while storing energy consistently as kcal
-- Automatic macro recalculation when an ingredient amount changes
-- Searchable meal builder that separates ingredient selection from measurements
-- Add a missing ingredient without losing the current meal draft
-- Reusable meals made from multiple ingredients
-- Reusable routines made from multiple meals
-- Mobile previews for ingredients, meals, and routines
-- Edit ingredients, meals, and routines
-- Create meal and routine variants without changing the original
-- Log a meal or an entire routine to today or an earlier date
-- Time-based routine suggestions based on previous usage
-- Installable iPhone home-screen experience
+- Private magic-link accounts with cloud sync
+- Daily calorie, protein, carbohydrate, and fat tracking
+- Calendar history and logging for past dates
+- Reusable ingredients, meals, routines, and variants
+- Live barcode scanning with automatic nutrition lookup
+- Mobile-first design installable on an iPhone home screen
 
 Barcode nutrition comes from the free Open Food Facts database. Some products have incomplete public records. When that happens, enter the package values manually and save the ingredient. Eats associates those values with the barcode in your Supabase account, so later scans reuse them.
 
