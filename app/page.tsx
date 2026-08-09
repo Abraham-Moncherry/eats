@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarBlank, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CalendarBlank, CaretDown, CaretUp, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
 import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
 
-type Entry = { id: string; name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; date: string; createdAt: number };
+type EntryIngredient = { id?:string; amount:number; unit:string; ingredient?:{name?:string;brand?:string|null} };
+type Entry = { id: string; name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; date: string; createdAt: number; snapshot?:{quantity?:number;ingredients?:EntryIngredient[]}|null };
 type Goals = { calories: number; protein: number };
 
 const meals = ["Breakfast", "Lunch", "Dinner", "Snack"];
@@ -52,6 +53,7 @@ export default function Home() {
   const [date, setDate] = useState(localDate());
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
 
@@ -66,11 +68,11 @@ export default function Home() {
     if (!user || !supabase) { setEntries([]); return; }
     setError("");
     Promise.all([
-      supabase.from("food_entries").select("id,name,calories,protein,carbohydrates,fat,meal,entry_date,created_at").order("created_at", { ascending: false }),
+      supabase.from("food_entries").select("id,name,calories,protein,carbohydrates,fat,meal,entry_date,created_at,snapshot").order("created_at", { ascending: false }),
       supabase.from("profiles").select("calorie_goal,protein_goal").eq("user_id", user.id).maybeSingle(),
     ]).then(([foodResult, profileResult]) => {
       if (foodResult.error) { setError(foodResult.error.message); return; }
-      setEntries((foodResult.data ?? []).map((row) => ({ id: row.id, name: row.name, calories: row.calories, protein: row.protein, carbohydrates: Number(row.carbohydrates||0), fat: Number(row.fat||0), meal: row.meal, date: row.entry_date, createdAt: new Date(row.created_at).getTime() })));
+      setEntries((foodResult.data ?? []).map((row) => ({ id: row.id, name: row.name, calories: row.calories, protein: row.protein, carbohydrates: Number(row.carbohydrates||0), fat: Number(row.fat||0), meal: row.meal, date: row.entry_date, createdAt: new Date(row.created_at).getTime(), snapshot:row.snapshot as Entry["snapshot"] })));
       if (profileResult.data) setGoals({ calories: profileResult.data.calorie_goal, protein: profileResult.data.protein_goal });
     });
   }, [user]);
@@ -137,14 +139,12 @@ export default function Home() {
         {error && <div className="error-banner">{error}</div>}
         <div className="section-heading"><div><span className="eyebrow">Food log</span><h1>What you ate</h1></div><button className="add-small" onClick={() => setShowAdd(true)}><Plus weight="bold" /> Add food</button></div>
         {dayEntries.length ? (
-          <div className="entry-list">{dayEntries.map((entry) => (
-            <article className="entry" key={entry.id}>
-              <div className="meal-dot" data-meal={entry.meal} />
-              <div className="entry-name"><strong>{entry.name}</strong><span>{entry.meal} · {entry.protein}g protein</span></div>
-              <strong className="entry-kcal">{entry.calories}<small> kcal</small></strong>
-              <button className="delete-btn" onClick={() => deleteEntry(entry.id)} aria-label={`Delete ${entry.name}`}><Trash /></button>
+          <div className="entry-list">{dayEntries.map((entry) => {const open=expandedEntry===entry.id;const quantity=Number(entry.snapshot?.quantity||1);return (
+            <article className={`entry${open?" expanded":""}`} key={entry.id}>
+              <div className="entry-row"><button className="entry-main" onClick={()=>setExpandedEntry(open?null:entry.id)} aria-expanded={open}><div className="meal-dot" data-meal={entry.meal}/><div className="entry-name"><strong>{entry.name}</strong><span>{entry.meal} · {entry.protein}g protein</span></div><strong className="entry-kcal">{entry.calories}<small> kcal</small></strong>{open?<CaretUp/>:<CaretDown/>}</button><button className="delete-btn" onClick={()=>deleteEntry(entry.id)} aria-label={`Delete ${entry.name}`}><Trash/></button></div>
+              {open&&<div className="entry-details"><div className="entry-macros"><span><strong>{entry.calories}</strong><small>kcal</small></span><span><strong>{entry.protein}g</strong><small>protein</small></span><span><strong>{entry.carbohydrates}g</strong><small>carbs</small></span><span><strong>{entry.fat}g</strong><small>fat</small></span></div>{entry.snapshot?.ingredients?.length?<div className="entry-ingredients"><span className="eyebrow">What was in this meal</span>{entry.snapshot.ingredients.map((item,index)=><div key={item.id||index}><span>{item.ingredient?.brand?`${item.ingredient.brand} `:""}{item.ingredient?.name||"Ingredient"}</span><strong>{Number(item.amount)*quantity} {item.unit}</strong></div>)}</div>:<p className="entry-no-breakdown">No ingredient breakdown was saved for this quick entry.</p>}</div>}
             </article>
-          ))}</div>
+          )})}</div>
         ) : (
           <div className="empty"><span><ClockCounterClockwise /></span><h2>Nothing logged yet</h2><p>Add your first meal and your daily totals will show up here.</p><button className="primary" onClick={() => setShowAdd(true)}><Plus weight="bold" /> Log your first food</button></div>
         )}
