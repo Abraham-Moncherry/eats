@@ -9,6 +9,6 @@ export const supabase = isSupabaseConfigured ? createClient(url!, key!) : null;
 export function getSiteUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
   const vercel = process.env.NEXT_PUBLIC_VERCEL_URL;
-  const value = configured || vercel || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  const value = (typeof window !== "undefined" ? window.location.origin : undefined) || configured || vercel || "http://localhost:3000";
   return value.startsWith("http") ? value : `https://${value}`;
 }
