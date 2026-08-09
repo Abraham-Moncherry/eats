@@ -54,6 +54,7 @@ export default function Home() {
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
 
@@ -93,6 +94,7 @@ export default function Home() {
     const { error: deleteError } = await supabase.from("food_entries").delete().eq("id", id);
     if (deleteError) { setError(deleteError.message); return; }
     setEntries((current) => current.filter((item) => item.id !== id));
+    setPendingDelete(null);
   }
 
   async function saveGoals(next: Goals) {
@@ -141,7 +143,7 @@ export default function Home() {
         {dayEntries.length ? (
           <div className="entry-list">{dayEntries.map((entry) => {const open=expandedEntry===entry.id;const quantity=Number(entry.snapshot?.quantity||1);return (
             <article className={`entry${open?" expanded":""}`} key={entry.id}>
-              <div className="entry-row"><button className="entry-main" onClick={()=>setExpandedEntry(open?null:entry.id)} aria-expanded={open}><div className="meal-dot" data-meal={entry.meal}/><div className="entry-name"><strong>{entry.name}</strong><span>{entry.meal} · {entry.protein}g protein</span></div><strong className="entry-kcal">{entry.calories}<small> kcal</small></strong>{open?<CaretUp/>:<CaretDown/>}</button><button className="delete-btn" onClick={()=>deleteEntry(entry.id)} aria-label={`Delete ${entry.name}`}><Trash/></button></div>
+              <div className="entry-row"><button className="entry-main" onClick={()=>setExpandedEntry(open?null:entry.id)} aria-expanded={open}><div className="meal-dot" data-meal={entry.meal}/><div className="entry-name"><strong>{entry.name}</strong><span>{entry.meal} · {entry.protein}g protein</span></div><strong className="entry-kcal">{entry.calories}<small> kcal</small></strong>{open?<CaretUp/>:<CaretDown/>}</button><button className="delete-btn" onClick={()=>setPendingDelete(entry)} aria-label={`Delete ${entry.name}`}><Trash/></button></div>
               {open&&<div className="entry-details"><div className="entry-macros"><span><strong>{entry.calories}</strong><small>kcal</small></span><span><strong>{entry.protein}g</strong><small>protein</small></span><span><strong>{entry.carbohydrates}g</strong><small>carbs</small></span><span><strong>{entry.fat}g</strong><small>fat</small></span></div>{entry.snapshot?.ingredients?.length?<div className="entry-ingredients"><span className="eyebrow">What was in this meal</span>{entry.snapshot.ingredients.map((item,index)=><div key={item.id||index}><span>{item.ingredient?.brand?`${item.ingredient.brand} `:""}{item.ingredient?.name||"Ingredient"}</span><strong>{Number(item.amount)*quantity} {item.unit}</strong></div>)}</div>:<p className="entry-no-breakdown">No ingredient breakdown was saved for this quick entry.</p>}</div>}
             </article>
           )})}</div>
@@ -153,8 +155,13 @@ export default function Home() {
       <button className="fab" onClick={() => setShowAdd(true)} aria-label="Add food"><Plus weight="bold" /></button>
       {showAdd && <AddSheet date={date} onClose={() => setShowAdd(false)} onAdd={addEntry} />}
       {showSettings && <Settings goals={goals} email={user.email ?? ""} onClose={() => setShowSettings(false)} onSave={saveGoals} />}
+      {pendingDelete&&<DeleteConfirmation entry={pendingDelete} onCancel={()=>setPendingDelete(null)} onConfirm={()=>deleteEntry(pendingDelete.id)}/>}
     </main>
   );
+}
+
+function DeleteConfirmation({entry,onCancel,onConfirm}:{entry:Entry;onCancel:()=>void;onConfirm:()=>void}) {
+  return <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&onCancel()}><section className="sheet compact confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="delete-title"><div className="sheet-handle"/><div className="confirm-icon"><Trash/></div><h2 id="delete-title">Delete this log?</h2><p>Are you sure you want to delete <strong>{entry.name}</strong> from {prettyDate(entry.date).toLowerCase()}?</p><div className="confirm-actions"><button className="secondary" onClick={onCancel}>No, keep it</button><button className="danger" onClick={onConfirm}>Yes, delete</button></div></section></div>
 }
 
 function AddSheet({ date, onClose, onAdd }: { date: string; onClose: () => void; onAdd: (entry: Omit<Entry, "id" | "createdAt">) => void }) {
