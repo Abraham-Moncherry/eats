@@ -30,7 +30,7 @@ export default function LibraryPage() {
     const [i,m,r,history]=await Promise.all([
       supabase.from("ingredients").select("id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat").order("name"),
       supabase.from("meals").select("id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat))").order("name"),
-      supabase.from("routines").select("id,name,suggested_period,routine_meals(id,quantity,meals(id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat)))").order("name"),
+      supabase.from("routines").select("id,name,suggested_period,routine_meals(id,quantity,meals(id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat))))").order("name"),
       supabase.from("food_entries").select("routine_name,created_at,entry_date").not("routine_name","is",null).gte("created_at",new Date(Date.now()-90*86400000).toISOString())
     ]);
     if(i.error||m.error||r.error){setMessage(i.error?.message||m.error?.message||r.error?.message||"Could not load library");setLoading(false);return;}
