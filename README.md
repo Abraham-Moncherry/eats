@@ -1,4 +1,12 @@
-# eats
+<p align="center">
+  <img src="public/eats-logo.png" alt="Eats logo" width="120" />
+</p>
+
+<h1 align="center">eats</h1>
+
+<p align="center">
+  A simple, mobile-first calorie and macro tracker.
+</p>
 
 A mobile-first calorie and macro tracker built with Next.js and Supabase. It tracks calories, protein, carbohydrates, and fat, with private cloud sync between devices.
 
