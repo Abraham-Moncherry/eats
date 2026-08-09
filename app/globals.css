@@ -11,6 +11,7 @@ header { display:flex; align-items:center; justify-content:space-between; }
 .brand { display:flex; align-items:center; gap:10px; font-family:"Manrope",sans-serif; font-size:20px; font-weight:800; letter-spacing:-.5px; }
 .brand-mark { display:grid; place-items:center; width:30px; height:30px; color:#f5f4ef; background:var(--ink); border-radius:9px; transform:rotate(-5deg); }
 .brand-mark svg { width:17px; transform:rotate(5deg); }
+.brand-logo{width:32px;height:32px;object-fit:contain;border-radius:8px}.brand-logo.large{width:64px;height:64px;border-radius:16px}
 .icon-btn { display:grid; place-items:center; width:42px; height:42px; border:1px solid var(--line); border-radius:50%; background:rgba(255,255,255,.7); cursor:pointer; }
 .icon-btn svg { width:20px; height:20px; }
 .icon-btn:disabled { opacity:.25; }

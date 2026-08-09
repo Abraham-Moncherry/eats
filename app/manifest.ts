@@ -10,8 +10,7 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#f6f5f0",
     theme_color: "#f6f5f0",
     icons: [
-      { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
-      { src: "/icon-maskable.svg", sizes: "any", type: "image/svg+xml", purpose: "maskable" },
+      { src: "/eats-logo.png", sizes: "834x834", type: "image/png", purpose: "any" },
     ],
   };
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarBlank, Check, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CalendarBlank, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
 import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
 
@@ -100,14 +100,14 @@ export default function Home() {
     setGoals(next); setShowSettings(false);
   }
 
-  if (!ready) return <div className="loading"><span className="brand-mark"><Check weight="bold" /></span><p>Loading your log…</p></div>;
+  if (!ready) return <div className="loading"><img className="brand-logo large" src="/eats-logo.png" alt="eats" /><p>Loading your log…</p></div>;
   if (!isSupabaseConfigured) return <SetupNeeded />;
   if (!user) return <AuthScreen />;
 
   return (
     <main>
       <header>
-        <div className="brand"><span className="brand-mark"><Check weight="bold" /></span><span>eats</span></div>
+        <div className="brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div>
         <div className="header-actions"><Link className="library-link" href="/history"><CalendarBlank /> History</Link><Link className="library-link" href="/library"><ForkKnife /> Library</Link><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><GearSix /></button></div>
       </header>
 
@@ -201,9 +201,9 @@ function AuthScreen() {
     if (result.error) setMessage(result.error.message);
     else setMessage("Magic link sent. Check your email and tap the link to sign in.");
   }
-  return <main className="auth-page"><div className="auth-brand"><span className="brand-mark"><Check weight="bold" /></span><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>Enter your email and we’ll send you a secure sign-in link. New emails automatically create an account.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="email" required autoFocus placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy}>{busy ? "Sending link…" : "Email me a magic link"}</button></form><p className="magic-note">No password needed. Each link can only be used once.</p></section></main>;
+  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>Enter your email and we’ll send you a secure sign-in link. New emails automatically create an account.</p><form onSubmit={submit}><label>Email<input type="email" autoComplete="email" required autoFocus placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy}>{busy ? "Sending link…" : "Email me a magic link"}</button></form><p className="magic-note">No password needed. Each link can only be used once.</p></section></main>;
 }
 
 function SetupNeeded() {
-  return <main className="auth-page"><div className="auth-brand"><span className="brand-mark"><Check weight="bold" /></span><span>eats</span></div><section className="auth-card"><span className="eyebrow">One-time setup</span><h1>Connect Supabase</h1><p>The app is ready for cloud sync. Add your project URL and publishable key to <code>.env.local</code>, then run the included SQL migration in Supabase.</p><div className="setup-code">NEXT_PUBLIC_SUPABASE_URL<br />NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</div></section></main>;
+  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">One-time setup</span><h1>Connect Supabase</h1><p>The app is ready for cloud sync. Add your project URL and publishable key to <code>.env.local</code>, then run the included SQL migration in Supabase.</p><div className="setup-code">NEXT_PUBLIC_SUPABASE_URL<br />NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</div></section></main>;
 }

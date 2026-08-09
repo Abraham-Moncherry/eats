@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, CaretDown, CaretUp, Check, ForkKnife, Plus, X } from "@phosphor-icons/react";
+import { ArrowLeft, CaretDown, CaretUp, ForkKnife, Plus, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import IngredientCapture from "./ingredient-capture";
@@ -46,10 +46,10 @@ export default function LibraryPage() {
   useEffect(()=>{supabase?.auth.getUser().then(({data})=>{setUser(data.user);if(data.user)load(data.user.id);else setLoading(false);});},[]);
   const sortedRoutines=useMemo(()=>[...routines].sort((a,b)=>(routineScores[b.name]||Number(b.suggested_period===periodNow()))-(routineScores[a.name]||Number(a.suggested_period===periodNow()))),[routines,routineScores]);
   async function logRoutine(routine:Routine){ if(!supabase||!user)return; setMessage("Adding routine…"); const rows=routine.meals.map(({meal,quantity})=>{const n=mealMacros(meal);return {user_id:user.id,name:meal.name,meal:logMealCategory(),meal_name:meal.name,routine_name:routine.name,entry_date:today(),calories:round(n.calories*quantity),protein:round(n.protein*quantity),carbohydrates:round(n.carbohydrates*quantity),fat:round(n.fat*quantity),snapshot:{routine:routine.name,meal:meal.name,quantity,ingredients:meal.items}}}); const {error}=await supabase.from("food_entries").insert(rows); setMessage(error?error.message:`Added ${routine.name} to today`); }
-  if(loading)return <div className="loading"><span className="brand-mark"><Check weight="bold"/></span><p>Loading your food library…</p></div>;
+  if(loading)return <div className="loading"><img className="brand-logo large" src="/eats-logo.png" alt="eats"/><p>Loading your food library…</p></div>;
   if(!user)return <main className="library-page"><Link href="/" className="back-link"><ArrowLeft/> Sign in</Link><div className="library-empty"><h1>Sign in first</h1><p>Your food library is private to your account.</p></div></main>;
   return <main className="library-page">
-    <header><Link href="/" className="back-link"><ArrowLeft/> Today</Link><div className="brand"><span className="brand-mark"><Check weight="bold"/></span><span>eats</span></div></header>
+    <header><Link href="/" className="back-link"><ArrowLeft/> Today</Link><div className="brand"><img className="brand-logo" src="/eats-logo.png" alt=""/><span>eats</span></div></header>
     <div className="library-heading"><div><span className="eyebrow">Reusable food</span><h1>Your library</h1><p>Build ingredients into meals, then meals into routines.</p></div></div>
     {message&&<div className="library-message">{message}<button onClick={()=>setMessage("")}><X/></button></div>}
     <section className="library-section"><div className="library-title"><div><h2>Routines</h2><p>Groups of meals you often eat together</p></div><button onClick={()=>setModal("routine")}><Plus/> New</button></div>
