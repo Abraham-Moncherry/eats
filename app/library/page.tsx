@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, CaretDown, CaretUp, Check, ForkKnife, Plus, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import IngredientCapture from "./ingredient-capture";
 
 type Ingredient = { id:string; name:string; brand:string|null; serving_amount:number; serving_unit:string; calories:number; protein:number; carbohydrates:number; fat:number };
 type MealItem = { id:string; amount:number; unit:string; ingredient:Ingredient };
@@ -51,7 +52,7 @@ export default function LibraryPage() {
     </section>
     <section className="library-section"><div className="library-title"><div><h2>Meals</h2><p>Recipes made from your ingredients</p></div><button onClick={()=>setModal("meal")}><Plus/> New</button></div>{meals.length?meals.map(meal=>{const n=mealMacros(meal);const open=expanded===`m-${meal.id}`;return <article className="library-card" key={meal.id}><button className="card-main" onClick={()=>setExpanded(open?null:`m-${meal.id}`)}><span><strong>{meal.name}</strong><small>{meal.items.length} ingredients · {round(n.calories)} kcal · {round(n.protein)}g protein</small></span>{open?<CaretUp/>:<CaretDown/>}</button>{open&&<div className="prepare">{meal.items.map(item=><div className="ingredient-line" key={item.id}><span>{item.ingredient.brand||item.ingredient.name}</span><strong>{item.amount} {item.unit}</strong></div>)}<div className="macro-line"><span>{round(n.calories)} kcal</span><span>P {round(n.protein)}g</span><span>C {round(n.carbohydrates)}g</span><span>F {round(n.fat)}g</span></div></div>}</article>}) : <Empty text="Meals such as porridge or a protein shake will appear here."/>}</section>
     <section className="library-section"><div className="library-title"><div><h2>Ingredients</h2><p>Foods, products and brands</p></div><button onClick={()=>setModal("ingredient")}><Plus/> New</button></div>{ingredients.length?<div className="ingredient-grid">{ingredients.map(i=><article className="ingredient-card" key={i.id}><strong>{i.name}</strong><small>{i.brand||"Generic"} · per {i.serving_amount}{i.serving_unit}</small><div><span>{round(i.calories)} kcal</span><span>{round(i.protein)}g P</span></div></article>)}</div>:<Empty text="Add an ingredient manually to get started."/>}</section>
-    {modal==="ingredient"&&<IngredientModal user={user} close={()=>setModal(null)} done={()=>{setModal(null);load(user.id)}}/>}
+    {modal==="ingredient"&&<IngredientCapture user={user} close={()=>setModal(null)} done={()=>{setModal(null);load(user.id)}}/>}
     {modal==="meal"&&<MealModal user={user} ingredients={ingredients} close={()=>setModal(null)} done={()=>{setModal(null);load(user.id)}}/>}
     {modal==="routine"&&<RoutineModal user={user} meals={meals} close={()=>setModal(null)} done={()=>{setModal(null);load(user.id)}}/>}
   </main>;
