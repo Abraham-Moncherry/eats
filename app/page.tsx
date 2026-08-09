@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, CalendarBlank, Check, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
 import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
 
@@ -108,7 +108,7 @@ export default function Home() {
     <main>
       <header>
         <div className="brand"><span className="brand-mark"><Check weight="bold" /></span><span>eats</span></div>
-        <div className="header-actions"><Link className="library-link" href="/library"><ForkKnife /> Library</Link><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><GearSix /></button></div>
+        <div className="header-actions"><Link className="library-link" href="/history"><CalendarBlank /> History</Link><Link className="library-link" href="/library"><ForkKnife /> Library</Link><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><GearSix /></button></div>
       </header>
 
       <section className="date-switcher">
