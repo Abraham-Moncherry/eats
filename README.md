@@ -25,11 +25,11 @@ The app uses passwordless magic links. Entering a new email creates its account;
 No test account is created automatically. To make one without needing another Gmail inbox, sign in with a plus alias:
 
 ```text
-Real account: yourname@gmail.com
-Test account: yourname+eats-test@gmail.com
+Real account: monsieurcheri@gmail.com
+Test account: monsieurcheri+eats-test@gmail.com
 ```
 
-The magic link for the test account arrives in the normal `yourname@gmail.com` inbox, but Supabase treats the alias as a separate user with completely separate food entries and goals. Replace `yourname@gmail.com` with your actual address. If your email provider does not support plus aliases, use another email inbox you can access.
+The magic link for the test account arrives in the normal `monsieurcheri@gmail.com` inbox, but Supabase treats the alias as a separate user with completely separate food entries and goals.
 
 ## Deploy to Vercel
 
