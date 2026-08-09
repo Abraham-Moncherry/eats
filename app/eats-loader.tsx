@@ -3,6 +3,5 @@ export default function EatsLoader({ compact = false }: { compact?: boolean }) {
     <span className="loader-ring" />
     <span className="loader-ring second" />
     <img src="/eats-logo.png" alt="" />
-    <span className="sr-only">Loading</span>
   </div>;
 }

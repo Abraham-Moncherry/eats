@@ -31,14 +31,14 @@ export default function LibraryPage() {
   const [modal,setModal]=useState<"ingredient"|"meal"|"routine"|null>(null); const [expanded,setExpanded]=useState<string|null>(null); const [message,setMessage]=useState(""); const [loading,setLoading]=useState(true);
   const [editIngredient,setEditIngredient]=useState<Ingredient|null>(null); const [editMeal,setEditMeal]=useState<{item:Meal;variant:boolean}|null>(null); const [editRoutine,setEditRoutine]=useState<{item:Routine;variant:boolean}|null>(null);
   async function load(uid:string) {
-    if(!supabase)return;
+    if(!supabase){setLoading(false);return}try{
     const [i,m,r,history]=await Promise.all([
       supabase.from("ingredients").select("id,name,brand,barcode,serving_amount,serving_unit,calories,protein,carbohydrates,fat").order("name"),
       supabase.from("meals").select("id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,barcode,serving_amount,serving_unit,calories,protein,carbohydrates,fat))").order("name"),
       supabase.from("routines").select("id,name,suggested_period,routine_meals(id,quantity,meals(id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,barcode,serving_amount,serving_unit,calories,protein,carbohydrates,fat))))").order("name"),
       supabase.from("food_entries").select("routine_name,created_at,entry_date").not("routine_name","is",null).gte("created_at",new Date(Date.now()-90*86400000).toISOString())
     ]);
-    if(i.error||m.error||r.error){setMessage(i.error?.message||m.error?.message||r.error?.message||"Could not load library");setLoading(false);return;}
+    if(i.error||m.error||r.error){setMessage(i.error?.message||m.error?.message||r.error?.message||"Could not load library");return;}
     setIngredients((i.data||[]) as Ingredient[]);
     const mapMeal=(row:any):Meal=>({id:row.id,name:row.name,notes:row.notes,items:(row.meal_ingredients||[]).map((x:any)=>({id:x.id,amount:Number(x.amount),unit:x.unit,ingredient:x.ingredients}))});
     setMeals((m.data||[]).map(mapMeal));
@@ -46,9 +46,9 @@ export default function LibraryPage() {
     const now=new Date(),scores:Record<string,number>={}; const seen=new Set<string>();
     for(const log of history.data||[]){const when=new Date(log.created_at);const key=`${log.routine_name}-${when.toISOString().slice(0,13)}`;if(seen.has(key))continue;seen.add(key);const hourDistance=Math.min(Math.abs(now.getHours()-when.getHours()),24-Math.abs(now.getHours()-when.getHours()));const recency=Math.max(0,1-(Date.now()-when.getTime())/(90*86400000));const weekday=when.getDay()===now.getDay()?1.5:1;scores[log.routine_name]=(scores[log.routine_name]||0)+(hourDistance<=1?4:hourDistance<=2?2:.2)*weekday*(.5+recency);}
     setRoutineScores(scores);
-    setLoading(false);
+    }catch(error){setMessage(error instanceof Error?error.message:"Could not load library")}finally{setLoading(false)}
   }
-  useEffect(()=>{supabase?.auth.getUser().then(({data})=>{setUser(data.user);if(data.user)load(data.user.id);else setLoading(false);});},[]);
+  useEffect(()=>{if(!supabase){setLoading(false);return}supabase.auth.getUser().then(({data,error})=>{if(error){setMessage(error.message);setLoading(false);return}setUser(data.user);if(data.user)load(data.user.id);else setLoading(false)}).catch(error=>{setMessage(error instanceof Error?error.message:"Could not check your account");setLoading(false)});},[]);
   const sortedRoutines=useMemo(()=>[...routines].sort((a,b)=>(routineScores[b.name]||Number(b.suggested_period===periodNow()))-(routineScores[a.name]||Number(a.suggested_period===periodNow()))),[routines,routineScores]);
   async function logRoutine(routine:Routine){ if(!supabase||!user)return;const entryDate=routineDates[routine.id]||today();setMessage("Adding routine…"); const rows=routine.meals.map(({meal,quantity})=>{const n=mealMacros(meal);return {user_id:user.id,name:meal.name,meal:categoryForRoutine(routine),meal_name:meal.name,routine_name:routine.name,entry_date:entryDate,calories:round(n.calories*quantity),protein:round(n.protein*quantity),carbohydrates:round(n.carbohydrates*quantity),fat:round(n.fat*quantity),snapshot:{routine:routine.name,meal:meal.name,quantity,ingredients:meal.items}}}); const {error}=await supabase.from("food_entries").insert(rows); setMessage(error?error.message:`Added ${routine.name} to ${entryDate===today()?"today":entryDate}`); }
   async function logMeal(meal:Meal){if(!supabase||!user)return;const entryDate=mealDates[meal.id]||today(),n=mealMacros(meal);setMessage("Adding meal…");const {error}=await supabase.from("food_entries").insert({user_id:user.id,name:meal.name,meal:logMealCategory(),meal_name:meal.name,entry_date:entryDate,calories:round(n.calories),protein:round(n.protein),carbohydrates:round(n.carbohydrates),fat:round(n.fat),snapshot:{meal:meal.name,quantity:1,ingredients:meal.items}});setMessage(error?error.message:`Added ${meal.name} to ${entryDate===today()?"today":entryDate}`)}
