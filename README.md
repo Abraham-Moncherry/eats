@@ -10,7 +10,12 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Create a Supabase project, open its SQL Editor, and run `supabase/migrations/20260808000000_initial_schema.sql`. Copy the project URL and publishable key from **Project Settings → API Keys** into `.env.local`, then open `http://localhost:3000`.
+Create a Supabase project, open its SQL Editor, and run the migrations in order:
+
+1. `supabase/migrations/20260808000000_initial_schema.sql`
+2. `supabase/migrations/20260809000000_meals_and_routines.sql`
+
+Copy the project URL and publishable key from **Project Settings → API Keys** into `.env.local`, then open `http://localhost:3000`.
 
 In Supabase, open **Authentication → URL Configuration** and set:
 
