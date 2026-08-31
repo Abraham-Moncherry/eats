@@ -12,6 +12,22 @@ export const supabase = isSupabaseConfigured
     })
   : null;
 
+export async function getCurrentSession(timeoutMs = 6000) {
+  if (!supabase) return null;
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error("The sign-in check took too long. Please try again.")), timeoutMs);
+  });
+
+  try {
+    const { data, error } = await Promise.race([supabase.auth.getSession(), timeout]);
+    if (error) throw error;
+    return data.session;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export function getSiteUrl() {
   const configured = process.env.NEXT_PUBLIC_SITE_URL;
   const vercel = process.env.NEXT_PUBLIC_VERCEL_URL;

@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, ArrowRight, CalendarBlank, CaretDown, CaretUp, ClockCounterClockwise, Fire, ForkKnife, GearSix, Plus, SignOut, Trash, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, Camera, CaretDown, CaretUp, CheckCircle, ClockCounterClockwise, Fire, GearSix, Plus, SignOut, Sparkle, Trash, X } from "@phosphor-icons/react";
 import type { User } from "@supabase/supabase-js";
-import { getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { getCurrentSession, getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
+import AppNav from "./app-nav";
 import EatsLoader from "./eats-loader";
 
 type EntryIngredient = { id?:string; amount:number; unit:string; ingredient?:{name?:string;brand?:string|null} };
 type Entry = { id: string; name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; date: string; createdAt: number; snapshot?:{quantity?:number;ingredients?:EntryIngredient[]}|null };
 type Goals = { calories: number; protein: number };
+type LibraryMeal = { id: string; name: string; notes?: string | null; ingredients: EntryIngredient[]; calories: number; protein: number; carbohydrates: number; fat: number };
+type MealEstimate = { name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; confidence: "low" | "medium" | "high"; note: string };
 
 const meals = ["Breakfast", "Lunch", "Dinner", "Snack"];
 
@@ -58,14 +60,27 @@ export default function Home() {
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+
+  useEffect(() => {
+    if (!confirmation) return;
+    const timeout = window.setTimeout(() => setConfirmation(""), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [confirmation]);
 
   useEffect(() => {
     if (!supabase) { setReady(true); return; }
-    // getSession reads the stored session (refreshing it only if needed) so a flaky
-    // connection never bounces a signed-in device back to the sign-in screen.
-    supabase.auth.getSession().then(({ data }) => { setUser(data.session?.user ?? null); setReady(true); });
-    const { data } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
-    return () => data.subscription.unsubscribe();
+    let active = true;
+    getCurrentSession()
+      .then((session) => { if (active) setUser(session?.user ?? null); })
+      .catch((sessionError) => { if (active) { setUser(null); setError(sessionError instanceof Error ? sessionError.message : "Could not check your sign-in."); } })
+      .finally(() => { if (active) setReady(true); });
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!active) return;
+      setUser(session?.user ?? null);
+      if (event === "INITIAL_SESSION") setReady(true);
+    });
+    return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -86,11 +101,14 @@ export default function Home() {
   const totals = dayEntries.reduce((sum, entry) => ({ calories: sum.calories + entry.calories, protein: sum.protein + entry.protein, carbohydrates: sum.carbohydrates + entry.carbohydrates, fat: sum.fat + entry.fat }), { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
 
   async function addEntry(entry: Omit<Entry, "id" | "createdAt">) {
-    if (!supabase || !user) return;
-    const { data, error: insertError } = await supabase.from("food_entries").insert({ user_id: user.id, name: entry.name, calories: entry.calories, protein: entry.protein, carbohydrates: entry.carbohydrates, fat: entry.fat, meal: entry.meal, entry_date: entry.date }).select("id,created_at").single();
-    if (insertError) { setError(insertError.message); return; }
+    if (!supabase || !user) return false;
+    const { data, error: insertError } = await supabase.from("food_entries").insert({ user_id: user.id, name: entry.name, calories: entry.calories, protein: entry.protein, carbohydrates: entry.carbohydrates, fat: entry.fat, meal: entry.meal, entry_date: entry.date, snapshot: entry.snapshot ?? null }).select("id,created_at").single();
+    if (insertError) { setError(insertError.message); return false; }
     setEntries((current) => [{ ...entry, id: data.id, createdAt: new Date(data.created_at).getTime() }, ...current]);
     setShowAdd(false);
+    setConfirmation(`${entry.name} added to ${entry.meal.toLowerCase()}`);
+    navigator.vibrate?.(20);
+    return true;
   }
 
   async function deleteEntry(id: string) {
@@ -110,13 +128,13 @@ export default function Home() {
 
   if (!ready) return <div className="loading"><EatsLoader /></div>;
   if (!isSupabaseConfigured) return <SetupNeeded />;
-  if (!user) return <AuthScreen />;
+  if (!user) return <AuthScreen initialMessage={error} />;
 
   return (
-    <main>
-      <header>
+    <main className="home-page">
+      <header className="app-header">
         <div className="brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div>
-        <div className="header-actions"><Link className="library-link" href="/history"><CalendarBlank /> History</Link><Link className="library-link" href="/library"><ForkKnife /> Library</Link><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><GearSix /></button></div>
+        <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><GearSix /></button>
       </header>
 
       <section className="date-switcher">
@@ -157,7 +175,9 @@ export default function Home() {
       </section>
 
       <button className="fab" onClick={() => setShowAdd(true)} aria-label="Add food"><Plus weight="bold" /></button>
-      {showAdd && <AddSheet date={date} onClose={() => setShowAdd(false)} onAdd={addEntry} />}
+      {confirmation && <div className="action-toast" role="status" aria-live="polite"><CheckCircle weight="fill" /><span><strong>Added</strong>{confirmation}</span><button onClick={() => setConfirmation("")} aria-label="Dismiss"><X /></button></div>}
+      <AppNav />
+      {showAdd && <AddSheet date={date} user={user} onClose={() => setShowAdd(false)} onAdd={addEntry} />}
       {showSettings && <Settings goals={goals} email={user.email ?? ""} onClose={() => setShowSettings(false)} onSave={saveGoals} />}
       {pendingDelete&&<DeleteConfirmation entry={pendingDelete} onCancel={()=>setPendingDelete(null)} onConfirm={()=>deleteEntry(pendingDelete.id)}/>}
     </main>
@@ -168,25 +188,87 @@ function DeleteConfirmation({entry,onCancel,onConfirm}:{entry:Entry;onCancel:()=
   return <div className="overlay" onMouseDown={e=>e.target===e.currentTarget&&onCancel()}><section className="sheet compact confirm-sheet" role="dialog" aria-modal="true" aria-labelledby="delete-title"><div className="sheet-handle"/><div className="confirm-icon"><Trash/></div><h2 id="delete-title">Delete this log?</h2><p>Are you sure you want to delete <strong>{entry.name}</strong> from {prettyDate(entry.date).toLowerCase()}?</p><div className="confirm-actions"><button className="secondary" onClick={onCancel}>No, keep it</button><button className="danger" onClick={onConfirm}>Yes, delete</button></div></section></div>
 }
 
-function AddSheet({ date, onClose, onAdd }: { date: string; onClose: () => void; onAdd: (entry: Omit<Entry, "id" | "createdAt">) => void }) {
+function AddSheet({ date, user, onClose, onAdd }: { date: string; user: User; onClose: () => void; onAdd: (entry: Omit<Entry, "id" | "createdAt">) => Promise<boolean> }) {
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
   const [carbohydrates, setCarbohydrates] = useState("");
   const [fat, setFat] = useState("");
   const [meal, setMeal] = useState("Breakfast");
-  function submit(event: React.FormEvent) {
+  const [mode, setMode] = useState<"quick" | "library" | "scan">("quick");
+  const [savedMeals, setSavedMeals] = useState<LibraryMeal[]>([]);
+  const [savedMealsLoading, setSavedMealsLoading] = useState(true);
+  const [savedMealsError, setSavedMealsError] = useState("");
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [description, setDescription] = useState("");
+  const [imageDataUrl, setImageDataUrl] = useState("");
+  const [imageName, setImageName] = useState("");
+  const [estimate, setEstimate] = useState<MealEstimate | null>(null);
+  const [analysisError, setAnalysisError] = useState("");
+
+  useEffect(() => {
+    if (!supabase) { setSavedMealsLoading(false); return; }
+    supabase.from("meals").select("id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,serving_amount,calories,protein,carbohydrates,fat))").eq("user_id", user.id).order("name").then(({ data, error }) => {
+      if (error) { setSavedMealsError(error.message); setSavedMealsLoading(false); return; }
+      const next = (data ?? []).map((savedMeal: any) => {
+        const ingredients: EntryIngredient[] = (savedMeal.meal_ingredients ?? []).map((item: any) => ({ id: item.id, amount: Number(item.amount), unit: item.unit, ingredient: item.ingredients }));
+        const macros = ingredients.reduce((sum, item) => {
+          const ingredient = item.ingredient as (EntryIngredient["ingredient"] & { serving_amount?: number; calories?: number; protein?: number; carbohydrates?: number; fat?: number }) | undefined;
+          const ratio = ingredient?.serving_amount ? item.amount / ingredient.serving_amount : 0;
+          return { calories: sum.calories + Number(ingredient?.calories ?? 0) * ratio, protein: sum.protein + Number(ingredient?.protein ?? 0) * ratio, carbohydrates: sum.carbohydrates + Number(ingredient?.carbohydrates ?? 0) * ratio, fat: sum.fat + Number(ingredient?.fat ?? 0) * ratio };
+        }, { calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
+        return { id: savedMeal.id, name: savedMeal.name, notes: savedMeal.notes, ingredients, calories: Math.round(macros.calories), protein: Math.round(macros.protein), carbohydrates: Math.round(macros.carbohydrates), fat: Math.round(macros.fat) };
+      });
+      setSavedMeals(next); setSavedMealsLoading(false);
+    });
+  }, [user.id]);
+
+  async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!name.trim() || !calories) return;
-    onAdd({ name: name.trim(), calories: Number(calories), protein: Number(protein || 0), carbohydrates: Number(carbohydrates || 0), fat: Number(fat || 0), meal, date });
+    setBusy(true);
+    await onAdd({ name: name.trim(), calories: Number(calories), protein: Number(protein || 0), carbohydrates: Number(carbohydrates || 0), fat: Number(fat || 0), meal, date });
+    setBusy(false);
   }
+
+  async function addSavedMeal(savedMeal: LibraryMeal) {
+    setBusy(true);
+    await onAdd({ name: savedMeal.name, calories: savedMeal.calories, protein: savedMeal.protein, carbohydrates: savedMeal.carbohydrates, fat: savedMeal.fat, meal, date, snapshot: { quantity: 1, ingredients: savedMeal.ingredients } });
+    setBusy(false);
+  }
+
+  function selectImage(file: File | undefined) {
+    if (!file) return;
+    if (!/^image\/(jpeg|jpg|png|webp)$/i.test(file.type) || file.size > 6_000_000) { setAnalysisError("Use a JPG, PNG, or WebP image under 6 MB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => { setImageDataUrl(String(reader.result)); setImageName(file.name || "Food photo"); setEstimate(null); setAnalysisError(""); };
+    reader.readAsDataURL(file);
+  }
+
+  async function analyseMeal() {
+    if (!supabase || (!description.trim() && !imageDataUrl)) return;
+    setBusy(true); setAnalysisError(""); setEstimate(null);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) { setAnalysisError("Your sign-in session has expired. Please sign in again."); setBusy(false); return; }
+    try {
+      const response = await fetch("/api/analyze-meal", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ description, imageDataUrl }) });
+      const result = await response.json() as MealEstimate & { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Meal analysis could not be completed.");
+      setEstimate(result); setName(result.name); setCalories(String(result.calories)); setProtein(String(result.protein)); setCarbohydrates(String(result.carbohydrates)); setFat(String(result.fat)); setMeal(result.meal);
+    } catch (error) { setAnalysisError(error instanceof Error ? error.message : "Meal analysis could not be completed."); }
+    finally { setBusy(false); }
+  }
+
+  const visibleSavedMeals = savedMeals.filter((savedMeal) => `${savedMeal.name} ${savedMeal.notes ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
   return <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><form className="sheet" onSubmit={submit}>
     <div className="sheet-handle" /><div className="sheet-title"><div><span className="eyebrow">Quick log</span><h2>Add food</h2></div><button type="button" className="icon-btn" onClick={onClose}><X /></button></div>
-    <label>What did you eat?<input autoFocus placeholder="e.g. Chicken wrap" value={name} onChange={(e) => setName(e.target.value)} /></label>
+    <div className="add-mode-picker three" role="tablist" aria-label="How to add food"><button type="button" role="tab" aria-selected={mode === "quick"} className={mode === "quick" ? "active" : ""} onClick={() => setMode("quick")}>Quick entry</button><button type="button" role="tab" aria-selected={mode === "library"} className={mode === "library" ? "active" : ""} onClick={() => setMode("library")}>From library</button><button type="button" role="tab" aria-selected={mode === "scan"} className={mode === "scan" ? "active" : ""} onClick={() => setMode("scan")}><Sparkle weight="fill" /> Scan or describe</button></div>
+    {mode === "quick" ? <><label>What did you eat?<input autoFocus placeholder="e.g. Chicken wrap" value={name} onChange={(e) => setName(e.target.value)} /></label>
     <div className="field-row"><label>Calories<input inputMode="numeric" placeholder="0" min="0" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} /><span>kcal</span></label><label>Protein<input inputMode="numeric" placeholder="0" min="0" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} /><span>grams</span></label></div>
-    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div>
+    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div></> : mode === "library" ? <div className="saved-meal-picker"><label className="saved-meal-search">Your saved meals<input autoFocus type="search" placeholder="Search your library" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{savedMealsLoading ? <p className="saved-meal-empty">Loading your meals…</p> : savedMealsError ? <p className="saved-meal-empty">{savedMealsError}</p> : visibleSavedMeals.length ? <div className="saved-meal-list">{visibleSavedMeals.map((savedMeal) => <button type="button" className="saved-meal-option" onClick={() => addSavedMeal(savedMeal)} disabled={busy} key={savedMeal.id}><span><strong>{savedMeal.name}</strong><small>{savedMeal.ingredients.length} ingredients · {savedMeal.protein}g protein</small></span><b>{savedMeal.calories}<small> kcal</small></b><Plus weight="bold" /></button>)}</div> : <p className="saved-meal-empty">{savedMeals.length ? "No meals match that search." : "Your library has no saved meals yet."}</p>}</div> : <div className="meal-analysis"><div className="analysis-intro"><span><Camera weight="fill" /></span><div><strong>Food photo or description</strong><p>We’ll identify it, estimate nutrition, then let you review before it’s added.</p></div></div><label>Describe your meal (optional)<textarea placeholder="e.g. homemade chicken pasta with pesto" value={description} onChange={(event) => { setDescription(event.target.value); setEstimate(null); }} /></label><label className="photo-picker"><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => selectImage(event.target.files?.[0])} /><Camera weight="fill" /><span>{imageName || "Take or choose a food photo"}</span></label>{imageDataUrl && <div className="photo-selected"><span>{imageName}</span><button type="button" onClick={() => { setImageDataUrl(""); setImageName(""); setEstimate(null); }}>Remove</button></div>}{analysisError && <p className="analysis-error">{analysisError}</p>}{estimate && <div className="estimate-note" data-confidence={estimate.confidence}><strong>{estimate.confidence} confidence estimate</strong><span>{estimate.note}</span></div>}<button type="button" className="primary full" onClick={analyseMeal} disabled={busy || (!description.trim() && !imageDataUrl)}><Sparkle weight="fill" /> {busy ? "Estimating nutrition…" : estimate ? "Estimate again" : "Identify & estimate"}</button></div>}
     <fieldset><legend>Meal</legend><div className="meal-picker">{meals.map((item) => <button type="button" className={meal === item ? "active" : ""} onClick={() => setMeal(item)} key={item}>{item}</button>)}</div></fieldset>
-    <button className="primary full" type="submit" disabled={!name.trim() || !calories}><Plus weight="bold" /> Add to {prettyDate(date).toLowerCase()}</button>
+    {(mode === "quick" || mode === "scan") && <button className="primary full" type="submit" disabled={busy || !name.trim() || !calories}><Plus weight="bold" /> {busy ? "Adding…" : mode === "scan" ? "Review complete — add meal" : `Add to ${prettyDate(date).toLowerCase()}`}</button>}
   </form></div>;
 }
 
@@ -201,11 +283,11 @@ function Settings({ goals, email, onClose, onSave }: { goals: Goals; email: stri
   </form></div>;
 }
 
-function AuthScreen() {
+function AuthScreen({ initialMessage = "" }: { initialMessage?: string }) {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [sent, setSent] = useState(false);
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [busy, setBusy] = useState(false);
   async function sendEmail(event: React.FormEvent) {
     event.preventDefault(); if (!supabase) return; setBusy(true); setMessage("");

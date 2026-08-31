@@ -3,14 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Copy } from "@phosphor-icons/react";
-import { supabase } from "@/lib/supabase";
+import { getCurrentSession, supabase } from "@/lib/supabase";
 import EatsLoader from "../eats-loader";
 
 export default function McpTestPage() {
   const [ready, setReady] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [message, setMessage] = useState("");
-  useEffect(() => { supabase?.auth.getUser().then(({ data }) => { setSignedIn(Boolean(data.user)); setReady(true); }); }, []);
+  useEffect(() => { getCurrentSession().then((session) => setSignedIn(Boolean(session?.user))).catch((error) => setMessage(error instanceof Error ? error.message : "Could not check your account.")).finally(() => setReady(true)); }, []);
 
   async function copyToken() {
     const { data, error } = await supabase!.auth.getSession();

@@ -35,7 +35,7 @@ async function handle(request: Request) {
   if (error || !user) return withCors(Response.json({ error: "The access token is invalid or expired" }, { status: 401 }));
 
   const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined, enableJsonResponse: true });
-  const server = createEatsMcpServer(db);
+  const server = createEatsMcpServer(db, user.id);
   await server.connect(transport);
   return withCors(await transport.handleRequest(request));
 }

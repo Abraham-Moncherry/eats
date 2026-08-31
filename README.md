@@ -21,11 +21,12 @@ A mobile-first calorie and macro tracker built with Next.js and Supabase. It tra
 - Calendar history and logging for past dates
 - Reusable ingredients, meals, routines, and variants
 - Live barcode scanning with automatic nutrition lookup
+- Photo or text meal estimates with an explicit review-before-logging step
 - Mobile-first design installable on an iPhone home screen
 
 Barcode nutrition comes from the free Open Food Facts database. Some products have incomplete public records. When that happens, enter the package values manually and save the ingredient. Eats associates those values with the barcode in your Supabase account, so later scans reuse them.
 
-Nutrition-label photo/OCR capture was intentionally removed because reliable extraction would require more advanced AI and potentially paid API usage.
+Photo estimates use the OpenAI Responses API only when `OPENAI_API_KEY` is configured on the server. They are estimates, not verified nutrition-label OCR: Eats always shows the proposed values for review before adding a food entry.
 
 ## Run locally
 
@@ -41,6 +42,7 @@ Create a Supabase project and copy the project URL and publishable key from **Pr
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
+OPENAI_API_KEY=
 ```
 
 The current Supabase key is called the **publishable key**. Do not use a secret key in browser code. The legacy anon-key variable remains only as a compatibility fallback.
@@ -104,6 +106,7 @@ Import this repository in Vercel and keep the detected Next.js settings. Add the
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_SITE_URL
+OPENAI_API_KEY
 ```
 
 Set `NEXT_PUBLIC_SITE_URL` to the final production URL and add that URL to Supabase Authentication settings.
@@ -114,17 +117,14 @@ After deployment, open Eats in Safari, tap **Share**, select **Add to Home Scree
 
 ## ChatGPT connection (MCP)
 
-Eats now includes a private, read-only MCP server at `/mcp`. It uses the signed-in user's temporary Supabase access token and the same Row Level Security policies as the web app. It does not use a Supabase secret key.
+Eats includes a private MCP server at `/mcp`. It uses the signed-in user's temporary Supabase access token and the same Row Level Security policies as the web app. It does not use a Supabase secret key.
 
 Current tools:
 
 - View daily totals and food logs
 - List saved meals and routines
-
-Planned write tools after the read-only tools have been tested:
-
-- Log a saved meal to a selected date
-- Log a saved routine to a selected date
+- Log a photographed or described food after ChatGPT estimates the nutrition and the user confirms it
+- Log a saved meal or complete routine to a selected date
 
 ChatGPT will never receive a Supabase secret key or unrestricted database access. A one-time account-linking flow will connect ChatGPT to the correct Eats user. Write actions will be limited to the tools Eats explicitly exposes.
 
