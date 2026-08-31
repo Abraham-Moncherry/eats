@@ -18,6 +18,9 @@ export function GET(request: Request) {
       },
     },
     components: {
+      // ChatGPT's Action importer requires this object to exist, even when
+      // request schemas are declared inline below each operation.
+      schemas: {},
       securitySchemes: {
         EatsOAuth: {
           type: "oauth2",
