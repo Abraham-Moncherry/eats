@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, CaretDown, CaretUp, CheckCircle, ClockCounterClockwise, Fire, GearSix, Plus, SignOut, Sparkle, Trash, X } from "@phosphor-icons/react";
+import { ArrowLeft, ArrowRight, Camera, ChevronDown as CaretDown, ChevronUp as CaretUp, CircleCheck as CheckCircle, Flame as Fire, History as ClockCounterClockwise, LogOut as SignOut, Plus, SlidersHorizontal, Sparkles as Sparkle, Trash2 as Trash, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { getCurrentSession, getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
 import AppNav from "./app-nav";
@@ -36,15 +36,10 @@ function shiftDate(value: string, amount: number) {
 
 function ProgressRing({ value, goal }: { value: number; goal: number }) {
   const pct = Math.min(value / goal, 1);
-  const radius = 82;
-  const circumference = 2 * Math.PI * radius;
   return (
-    <div className="ring-wrap">
-      <svg className="ring" viewBox="0 0 200 200" aria-label={`${value} of ${goal} calories`}>
-        <circle className="ring-track" cx="100" cy="100" r={radius} />
-        <circle className="ring-value" cx="100" cy="100" r={radius} strokeDasharray={circumference} strokeDashoffset={circumference * (1 - pct)} />
-      </svg>
-      <div className="ring-copy"><span>{value.toLocaleString()}</span><small>of {goal.toLocaleString()} kcal</small></div>
+    <div className="energy-meter" aria-label={`${value} of ${goal} calories`}>
+      <div className="energy-reading"><span>{value.toLocaleString()}</span><small>/ {goal.toLocaleString()} kcal</small></div>
+      <div className="energy-track"><span style={{ width: `${pct * 100}%` }} /></div>
     </div>
   );
 }
@@ -134,7 +129,7 @@ export default function Home() {
     <main className="home-page">
       <header className="app-header">
         <div className="brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div>
-        <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><GearSix /></button>
+        <div className="header-actions"><button className="header-create" onClick={() => setShowAdd(true)}><Plus /><span>New entry</span></button><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><SlidersHorizontal /></button></div>
       </header>
 
       <section className="date-switcher">
@@ -147,7 +142,7 @@ export default function Home() {
 
       <section className="dashboard">
         <div className="summary-card">
-          <div className="eyebrow"><Fire weight="fill" /> Daily energy</div>
+          <div className="eyebrow"><Fire /> Daily energy</div>
           <ProgressRing value={totals.calories} goal={goals.calories} />
           <div className="remaining"><strong>{Math.max(goals.calories - totals.calories, 0).toLocaleString()}</strong> kcal remaining</div>
         </div>
@@ -161,7 +156,7 @@ export default function Home() {
 
       <section className="log-section">
         {error && <div className="error-banner">{error}</div>}
-        <div className="section-heading"><div><span className="eyebrow">Food log</span><h1>What you ate</h1></div><button className="add-small" onClick={() => setShowAdd(true)}><Plus weight="bold" /> Add food</button></div>
+        <div className="section-heading"><div><span className="eyebrow">Food log</span><h1>What you ate</h1></div><button className="add-small" onClick={() => setShowAdd(true)}><Plus /> Add food</button></div>
         {dayEntries.length ? (
           <div className="meal-groups">{groupedDayEntries.map(group=><section className="meal-group" key={group.category}><div className="meal-group-heading"><h2>{group.category}</h2><span>{group.entries.length} {group.entries.length===1?"item":"items"} · {Math.round(group.entries.reduce((sum,entry)=>sum+entry.calories,0))} kcal</span></div><div className="entry-list">{group.entries.map((entry) => {const open=expandedEntry===entry.id;const quantity=Number(entry.snapshot?.quantity||1);return (
               <article className={`entry${open?" expanded":""}`} key={entry.id}>
@@ -170,12 +165,11 @@ export default function Home() {
               </article>
             )})}</div></section>)}</div>
         ) : (
-          <div className="empty"><span><ClockCounterClockwise /></span><h2>Nothing logged yet</h2><p>Add your first meal and your daily totals will show up here.</p><button className="primary" onClick={() => setShowAdd(true)}><Plus weight="bold" /> Log your first food</button></div>
+          <div className="empty"><span><ClockCounterClockwise /></span><h2>Nothing logged yet</h2><p>Add your first meal and your daily totals will show up here.</p><button className="primary" onClick={() => setShowAdd(true)}><Plus /> Log your first food</button></div>
         )}
       </section>
 
-      <button className="fab" onClick={() => setShowAdd(true)} aria-label="Add food"><Plus weight="bold" /></button>
-      {confirmation && <div className="action-toast" role="status" aria-live="polite"><CheckCircle weight="fill" /><span><strong>Added</strong>{confirmation}</span><button onClick={() => setConfirmation("")} aria-label="Dismiss"><X /></button></div>}
+      {confirmation && <div className="action-toast" role="status" aria-live="polite"><CheckCircle /><span><strong>Added</strong>{confirmation}</span><button onClick={() => setConfirmation("")} aria-label="Dismiss"><X /></button></div>}
       <AppNav />
       {showAdd && <AddSheet date={date} user={user} onClose={() => setShowAdd(false)} onAdd={addEntry} />}
       {showSettings && <Settings goals={goals} email={user.email ?? ""} onClose={() => setShowSettings(false)} onSave={saveGoals} />}
@@ -239,9 +233,9 @@ function AddSheet({ date, user, onClose, onAdd }: { date: string; user: User; on
     <div className="add-mode-picker" role="tablist" aria-label="How to add food"><button type="button" role="tab" aria-selected={mode === "quick"} className={mode === "quick" ? "active" : ""} onClick={() => setMode("quick")}>Quick entry</button><button type="button" role="tab" aria-selected={mode === "library"} className={mode === "library" ? "active" : ""} onClick={() => setMode("library")}>From library</button></div>
     {mode === "quick" ? <><label>What did you eat?<input autoFocus placeholder="e.g. Chicken wrap" value={name} onChange={(e) => setName(e.target.value)} /></label>
     <div className="field-row"><label>Calories<input inputMode="numeric" placeholder="0" min="0" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} /><span>kcal</span></label><label>Protein<input inputMode="numeric" placeholder="0" min="0" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} /><span>grams</span></label></div>
-    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div></> : <div className="saved-meal-picker"><label className="saved-meal-search">Your saved meals<input autoFocus type="search" placeholder="Search your library" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{savedMealsLoading ? <p className="saved-meal-empty">Loading your meals…</p> : savedMealsError ? <p className="saved-meal-empty">{savedMealsError}</p> : visibleSavedMeals.length ? <div className="saved-meal-list">{visibleSavedMeals.map((savedMeal) => <button type="button" className="saved-meal-option" onClick={() => addSavedMeal(savedMeal)} disabled={busy} key={savedMeal.id}><span><strong>{savedMeal.name}</strong><small>{savedMeal.ingredients.length} ingredients · {savedMeal.protein}g protein</small></span><b>{savedMeal.calories}<small> kcal</small></b><Plus weight="bold" /></button>)}</div> : <p className="saved-meal-empty">{savedMeals.length ? "No meals match that search." : "Your library has no saved meals yet."}</p>}</div>}
+    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div></> : <div className="saved-meal-picker"><label className="saved-meal-search">Your saved meals<input autoFocus type="search" placeholder="Search your library" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{savedMealsLoading ? <p className="saved-meal-empty">Loading your meals…</p> : savedMealsError ? <p className="saved-meal-empty">{savedMealsError}</p> : visibleSavedMeals.length ? <div className="saved-meal-list">{visibleSavedMeals.map((savedMeal) => <button type="button" className="saved-meal-option" onClick={() => addSavedMeal(savedMeal)} disabled={busy} key={savedMeal.id}><span><strong>{savedMeal.name}</strong><small>{savedMeal.ingredients.length} ingredients · {savedMeal.protein}g protein</small></span><b>{savedMeal.calories}<small> kcal</small></b><Plus /></button>)}</div> : <p className="saved-meal-empty">{savedMeals.length ? "No meals match that search." : "Your library has no saved meals yet."}</p>}</div>}
     <fieldset><legend>Meal</legend><div className="meal-picker">{meals.map((item) => <button type="button" className={meal === item ? "active" : ""} onClick={() => setMeal(item)} key={item}>{item}</button>)}</div></fieldset>
-    {mode === "quick" && <button className="primary full" type="submit" disabled={busy || !name.trim() || !calories}><Plus weight="bold" /> {busy ? "Adding…" : `Add to ${prettyDate(date).toLowerCase()}`}</button>}
+    {mode === "quick" && <button className="primary full" type="submit" disabled={busy || !name.trim() || !calories}><Plus /> {busy ? "Adding…" : `Add to ${prettyDate(date).toLowerCase()}`}</button>}
   </form></div>;
 }
 

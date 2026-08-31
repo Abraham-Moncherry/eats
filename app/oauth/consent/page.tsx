@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle, XCircle } from "@phosphor-icons/react";
+import { CircleCheck as CheckCircle, CircleX as XCircle } from "lucide-react";
 import { getSiteUrl, supabase } from "@/lib/supabase";
 
 type Details = { authorization_id: string; client: { name: string }; scope: string; redirect_uri: string };

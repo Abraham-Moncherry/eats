@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CaretLeft, CaretRight } from "@phosphor-icons/react";
+import { ChevronLeft as CaretLeft, ChevronRight as CaretRight } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { getCurrentSession, supabase } from "@/lib/supabase";
 import EatsLoader from "../eats-loader";

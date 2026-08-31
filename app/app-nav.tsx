@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDots, ForkKnife, House } from "@phosphor-icons/react";
+import { History, House, Library } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 const items = [
   { href: "/", label: "Today", icon: House },
-  { href: "/history", label: "History", icon: CalendarDots },
-  { href: "/library", label: "Library", icon: ForkKnife },
+  { href: "/history", label: "History", icon: History },
+  { href: "/library", label: "Library", icon: Library },
 ];
 
 export default function AppNav() {
@@ -24,7 +24,7 @@ export default function AppNav() {
             aria-current={active ? "page" : undefined}
             key={href}
           >
-            <Icon weight={active ? "fill" : "regular"} />
+            <Icon />
             <span>{label}</span>
           </Link>
         );

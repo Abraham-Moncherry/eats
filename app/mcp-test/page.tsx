@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Copy } from "@phosphor-icons/react";
+import { ArrowLeft, Copy } from "lucide-react";
 import { getCurrentSession, supabase } from "@/lib/supabase";
 import EatsLoader from "../eats-loader";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Barcode, SpinnerGap, X } from "@phosphor-icons/react";
+import { LoaderCircle as SpinnerGap, ScanBarcode as Barcode, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
