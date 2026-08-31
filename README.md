@@ -21,12 +21,12 @@ A mobile-first calorie and macro tracker built with Next.js and Supabase. It tra
 - Calendar history and logging for past dates
 - Reusable ingredients, meals, routines, and variants
 - Live barcode scanning with automatic nutrition lookup
-- Photo or text meal estimates with an explicit review-before-logging step
+- ChatGPT-ready, review-before-logging meal action
 - Mobile-first design installable on an iPhone home screen
 
 Barcode nutrition comes from the free Open Food Facts database. Some products have incomplete public records. When that happens, enter the package values manually and save the ingredient. Eats associates those values with the barcode in your Supabase account, so later scans reuse them.
 
-Photo estimates use the OpenAI Responses API only when `OPENAI_API_KEY` is configured on the server. They are estimates, not verified nutrition-label OCR: Eats always shows the proposed values for review before adding a food entry.
+Food photo and description analysis belongs in the Eats GPT inside ChatGPT. Eats does not require an OpenAI API key: it only receives a reviewed meal after the user explicitly approves it in the ChatGPT conversation.
 
 ## Run locally
 
@@ -42,7 +42,6 @@ Create a Supabase project and copy the project URL and publishable key from **Pr
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
-OPENAI_API_KEY=
 ```
 
 The current Supabase key is called the **publishable key**. Do not use a secret key in browser code. The legacy anon-key variable remains only as a compatibility fallback.
@@ -106,7 +105,6 @@ Import this repository in Vercel and keep the detected Next.js settings. Add the
 NEXT_PUBLIC_SUPABASE_URL
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 NEXT_PUBLIC_SITE_URL
-OPENAI_API_KEY
 ```
 
 Set `NEXT_PUBLIC_SITE_URL` to the final production URL and add that URL to Supabase Authentication settings.
@@ -115,18 +113,32 @@ Set `NEXT_PUBLIC_SITE_URL` to the final production URL and add that URL to Supab
 
 After deployment, open Eats in Safari, tap **Share**, select **Add to Home Screen**, and tap **Add**.
 
-## ChatGPT connection (MCP)
+## Eats GPT connection
 
-Eats includes a private MCP server at `/mcp`. It uses the signed-in user's temporary Supabase access token and the same Row Level Security policies as the web app. It does not use a Supabase secret key.
+Eats includes two secure connection surfaces, both using the signed-in user's Supabase OAuth token and existing Row Level Security policies. Neither uses an OpenAI API key or Supabase secret key.
 
-Current tools:
+### Custom GPT Action (the phone-first flow)
 
-- View daily totals and food logs
-- List saved meals and routines
-- Log a photographed or described food after ChatGPT estimates the nutrition and the user confirms it
-- Log a saved meal or complete routine to a selected date
+Create an Eats GPT in ChatGPT and add an OAuth Action using this OpenAPI schema after deploying Eats:
 
-ChatGPT will never receive a Supabase secret key or unrestricted database access. A one-time account-linking flow will connect ChatGPT to the correct Eats user. Write actions will be limited to the tools Eats explicitly exposes.
+```text
+https://YOUR-EATS-DOMAIN/.well-known/eats-gpt-openapi.json
+```
+
+Use OAuth authorization and token URLs from your Supabase project:
+
+```text
+https://YOUR-PROJECT.supabase.co/auth/v1/oauth/authorize
+https://YOUR-PROJECT.supabase.co/auth/v1/oauth/token
+```
+
+In the GPT instructions, require this flow: analyse the uploaded photo or written description; state that calories and macros are an estimate; show the proposed meal and category; ask for an explicit approval; only then call `logReviewedMeal`.
+
+Before it can connect, enable **Authentication → OAuth Server** in Supabase, set the authorization path to `/oauth/consent`, and register the exact callback URL shown in the GPT Action editor as a confidential OAuth client. The built-in Eats consent screen lets each user link only their own account.
+
+### MCP (desktop testing)
+
+The `/mcp` server still provides totals, logs, saved meals, saved routines, and write tools. It now publishes OAuth protected-resource metadata so compatible clients can discover the Supabase OAuth server.
 
 ### Test MCP locally before deployment
 

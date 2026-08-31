@@ -195,17 +195,12 @@ function AddSheet({ date, user, onClose, onAdd }: { date: string; user: User; on
   const [carbohydrates, setCarbohydrates] = useState("");
   const [fat, setFat] = useState("");
   const [meal, setMeal] = useState("Breakfast");
-  const [mode, setMode] = useState<"quick" | "library" | "scan">("quick");
+  const [mode, setMode] = useState<"quick" | "library">("quick");
   const [savedMeals, setSavedMeals] = useState<LibraryMeal[]>([]);
   const [savedMealsLoading, setSavedMealsLoading] = useState(true);
   const [savedMealsError, setSavedMealsError] = useState("");
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
-  const [description, setDescription] = useState("");
-  const [imageDataUrl, setImageDataUrl] = useState("");
-  const [imageName, setImageName] = useState("");
-  const [estimate, setEstimate] = useState<MealEstimate | null>(null);
-  const [analysisError, setAnalysisError] = useState("");
 
   useEffect(() => {
     if (!supabase) { setSavedMealsLoading(false); return; }
@@ -238,37 +233,15 @@ function AddSheet({ date, user, onClose, onAdd }: { date: string; user: User; on
     setBusy(false);
   }
 
-  function selectImage(file: File | undefined) {
-    if (!file) return;
-    if (!/^image\/(jpeg|jpg|png|webp)$/i.test(file.type) || file.size > 6_000_000) { setAnalysisError("Use a JPG, PNG, or WebP image under 6 MB."); return; }
-    const reader = new FileReader();
-    reader.onload = () => { setImageDataUrl(String(reader.result)); setImageName(file.name || "Food photo"); setEstimate(null); setAnalysisError(""); };
-    reader.readAsDataURL(file);
-  }
-
-  async function analyseMeal() {
-    if (!supabase || (!description.trim() && !imageDataUrl)) return;
-    setBusy(true); setAnalysisError(""); setEstimate(null);
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.access_token) { setAnalysisError("Your sign-in session has expired. Please sign in again."); setBusy(false); return; }
-    try {
-      const response = await fetch("/api/analyze-meal", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ description, imageDataUrl }) });
-      const result = await response.json() as MealEstimate & { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "Meal analysis could not be completed.");
-      setEstimate(result); setName(result.name); setCalories(String(result.calories)); setProtein(String(result.protein)); setCarbohydrates(String(result.carbohydrates)); setFat(String(result.fat)); setMeal(result.meal);
-    } catch (error) { setAnalysisError(error instanceof Error ? error.message : "Meal analysis could not be completed."); }
-    finally { setBusy(false); }
-  }
-
   const visibleSavedMeals = savedMeals.filter((savedMeal) => `${savedMeal.name} ${savedMeal.notes ?? ""}`.toLowerCase().includes(query.trim().toLowerCase()));
   return <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}><form className="sheet" onSubmit={submit}>
     <div className="sheet-handle" /><div className="sheet-title"><div><span className="eyebrow">Quick log</span><h2>Add food</h2></div><button type="button" className="icon-btn" onClick={onClose}><X /></button></div>
-    <div className="add-mode-picker three" role="tablist" aria-label="How to add food"><button type="button" role="tab" aria-selected={mode === "quick"} className={mode === "quick" ? "active" : ""} onClick={() => setMode("quick")}>Quick entry</button><button type="button" role="tab" aria-selected={mode === "library"} className={mode === "library" ? "active" : ""} onClick={() => setMode("library")}>From library</button><button type="button" role="tab" aria-selected={mode === "scan"} className={mode === "scan" ? "active" : ""} onClick={() => setMode("scan")}><Sparkle weight="fill" /> Scan or describe</button></div>
+    <div className="add-mode-picker" role="tablist" aria-label="How to add food"><button type="button" role="tab" aria-selected={mode === "quick"} className={mode === "quick" ? "active" : ""} onClick={() => setMode("quick")}>Quick entry</button><button type="button" role="tab" aria-selected={mode === "library"} className={mode === "library" ? "active" : ""} onClick={() => setMode("library")}>From library</button></div>
     {mode === "quick" ? <><label>What did you eat?<input autoFocus placeholder="e.g. Chicken wrap" value={name} onChange={(e) => setName(e.target.value)} /></label>
     <div className="field-row"><label>Calories<input inputMode="numeric" placeholder="0" min="0" type="number" value={calories} onChange={(e) => setCalories(e.target.value)} /><span>kcal</span></label><label>Protein<input inputMode="numeric" placeholder="0" min="0" type="number" value={protein} onChange={(e) => setProtein(e.target.value)} /><span>grams</span></label></div>
-    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div></> : mode === "library" ? <div className="saved-meal-picker"><label className="saved-meal-search">Your saved meals<input autoFocus type="search" placeholder="Search your library" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{savedMealsLoading ? <p className="saved-meal-empty">Loading your meals…</p> : savedMealsError ? <p className="saved-meal-empty">{savedMealsError}</p> : visibleSavedMeals.length ? <div className="saved-meal-list">{visibleSavedMeals.map((savedMeal) => <button type="button" className="saved-meal-option" onClick={() => addSavedMeal(savedMeal)} disabled={busy} key={savedMeal.id}><span><strong>{savedMeal.name}</strong><small>{savedMeal.ingredients.length} ingredients · {savedMeal.protein}g protein</small></span><b>{savedMeal.calories}<small> kcal</small></b><Plus weight="bold" /></button>)}</div> : <p className="saved-meal-empty">{savedMeals.length ? "No meals match that search." : "Your library has no saved meals yet."}</p>}</div> : <div className="meal-analysis"><div className="analysis-intro"><span><Camera weight="fill" /></span><div><strong>Food photo or description</strong><p>We’ll identify it, estimate nutrition, then let you review before it’s added.</p></div></div><label>Describe your meal (optional)<textarea placeholder="e.g. homemade chicken pasta with pesto" value={description} onChange={(event) => { setDescription(event.target.value); setEstimate(null); }} /></label><label className="photo-picker"><input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => selectImage(event.target.files?.[0])} /><Camera weight="fill" /><span>{imageName || "Take or choose a food photo"}</span></label>{imageDataUrl && <div className="photo-selected"><span>{imageName}</span><button type="button" onClick={() => { setImageDataUrl(""); setImageName(""); setEstimate(null); }}>Remove</button></div>}{analysisError && <p className="analysis-error">{analysisError}</p>}{estimate && <div className="estimate-note" data-confidence={estimate.confidence}><strong>{estimate.confidence} confidence estimate</strong><span>{estimate.note}</span></div>}<button type="button" className="primary full" onClick={analyseMeal} disabled={busy || (!description.trim() && !imageDataUrl)}><Sparkle weight="fill" /> {busy ? "Estimating nutrition…" : estimate ? "Estimate again" : "Identify & estimate"}</button></div>}
+    <div className="field-row"><label>Carbohydrates<input inputMode="numeric" placeholder="0" min="0" type="number" value={carbohydrates} onChange={(e) => setCarbohydrates(e.target.value)} /><span>grams</span></label><label>Fat<input inputMode="numeric" placeholder="0" min="0" type="number" value={fat} onChange={(e) => setFat(e.target.value)} /><span>grams</span></label></div></> : <div className="saved-meal-picker"><label className="saved-meal-search">Your saved meals<input autoFocus type="search" placeholder="Search your library" value={query} onChange={(event) => setQuery(event.target.value)} /></label>{savedMealsLoading ? <p className="saved-meal-empty">Loading your meals…</p> : savedMealsError ? <p className="saved-meal-empty">{savedMealsError}</p> : visibleSavedMeals.length ? <div className="saved-meal-list">{visibleSavedMeals.map((savedMeal) => <button type="button" className="saved-meal-option" onClick={() => addSavedMeal(savedMeal)} disabled={busy} key={savedMeal.id}><span><strong>{savedMeal.name}</strong><small>{savedMeal.ingredients.length} ingredients · {savedMeal.protein}g protein</small></span><b>{savedMeal.calories}<small> kcal</small></b><Plus weight="bold" /></button>)}</div> : <p className="saved-meal-empty">{savedMeals.length ? "No meals match that search." : "Your library has no saved meals yet."}</p>}</div>}
     <fieldset><legend>Meal</legend><div className="meal-picker">{meals.map((item) => <button type="button" className={meal === item ? "active" : ""} onClick={() => setMeal(item)} key={item}>{item}</button>)}</div></fieldset>
-    {(mode === "quick" || mode === "scan") && <button className="primary full" type="submit" disabled={busy || !name.trim() || !calories}><Plus weight="bold" /> {busy ? "Adding…" : mode === "scan" ? "Review complete — add meal" : `Add to ${prettyDate(date).toLowerCase()}`}</button>}
+    {mode === "quick" && <button className="primary full" type="submit" disabled={busy || !name.trim() || !calories}><Plus weight="bold" /> {busy ? "Adding…" : `Add to ${prettyDate(date).toLowerCase()}`}</button>}
   </form></div>;
 }
 

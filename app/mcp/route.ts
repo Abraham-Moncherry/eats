@@ -25,7 +25,12 @@ async function handle(request: Request) {
 
   const authorization = request.headers.get("authorization");
   const token = authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
-  if (!token) return withCors(Response.json({ error: "A Supabase access token is required" }, { status: 401 }));
+  if (!token) {
+    const response = Response.json({ error: "Connect your Eats account to continue." }, { status: 401 });
+    const headers = new Headers(response.headers);
+    headers.set("WWW-Authenticate", `Bearer resource_metadata="${new URL("/.well-known/oauth-protected-resource/mcp", request.url).toString()}"`);
+    return withCors(new Response(response.body, { status: response.status, headers }));
+  }
 
   const db = createClient(url, key, {
     global: { headers: { Authorization: `Bearer ${token}` } },
