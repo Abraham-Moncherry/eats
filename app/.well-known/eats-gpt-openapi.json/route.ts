@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 export function GET(request: Request) {
   const origin = new URL(request.url).origin;
+  const oauthOrigin = `${origin}/api/gpt/oauth`;
   return Response.json({
     openapi: "3.1.0",
     info: { title: "Eats", version: "1.0.0", description: "Log a meal only after the user has explicitly approved the proposed nutrition estimate." },
@@ -26,8 +27,8 @@ export function GET(request: Request) {
           type: "oauth2",
           flows: {
             authorizationCode: {
-              authorizationUrl: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/oauth/authorize`,
-              tokenUrl: `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/oauth/token`,
+              authorizationUrl: `${oauthOrigin}/authorize`,
+              tokenUrl: `${oauthOrigin}/token`,
               scopes: {},
             },
           },
