@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight, Camera, ChevronDown as CaretDown, ChevronUp as CaretUp, CircleCheck as CheckCircle, Flame as Fire, History as ClockCounterClockwise, LogOut as SignOut, Plus, SlidersHorizontal, Sparkles as Sparkle, Trash2 as Trash, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight, Camera, ChevronDown as CaretDown, ChevronUp as CaretUp, CircleCheck as CheckCircle, Flame as Fire, History as ClockCounterClockwise, LogOut as SignOut, Plus, RefreshCw, SlidersHorizontal, Sparkles as Sparkle, Trash2 as Trash, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { getCurrentSession, getSiteUrl, isSupabaseConfigured, supabase } from "@/lib/supabase";
 import AppNav from "./app-nav";
@@ -14,6 +14,7 @@ type LibraryMeal = { id: string; name: string; notes?: string | null; ingredient
 type MealEstimate = { name: string; calories: number; protein: number; carbohydrates: number; fat: number; meal: string; confidence: "low" | "medium" | "high"; note: string };
 
 const meals = ["Breakfast", "Lunch", "Dinner", "Snack"];
+const emailCodeLength = 8;
 
 function localDate(date = new Date()) {
   const offset = date.getTimezoneOffset();
@@ -56,6 +57,7 @@ export default function Home() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [confirmation, setConfirmation] = useState("");
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     if (!confirmation) return;
@@ -78,18 +80,24 @@ export default function Home() {
     return () => { active = false; data.subscription.unsubscribe(); };
   }, []);
 
-  useEffect(() => {
+  const loadDashboard = useCallback(async (showSyncing = false) => {
     if (!user || !supabase) { setEntries([]); return; }
+    if (showSyncing) setSyncing(true);
     setError("");
-    Promise.all([
-      supabase.from("food_entries").select("id,name,calories,protein,carbohydrates,fat,meal,entry_date,created_at,snapshot").order("created_at", { ascending: false }),
-      supabase.from("profiles").select("calorie_goal,protein_goal").eq("user_id", user.id).maybeSingle(),
-    ]).then(([foodResult, profileResult]) => {
+    try {
+      const [foodResult, profileResult] = await Promise.all([
+        supabase.from("food_entries").select("id,name,calories,protein,carbohydrates,fat,meal,entry_date,created_at,snapshot").order("created_at", { ascending: false }),
+        supabase.from("profiles").select("calorie_goal,protein_goal").eq("user_id", user.id).maybeSingle(),
+      ]);
       if (foodResult.error) { setError(foodResult.error.message); return; }
       setEntries((foodResult.data ?? []).map((row) => ({ id: row.id, name: row.name, calories: row.calories, protein: row.protein, carbohydrates: Number(row.carbohydrates||0), fat: Number(row.fat||0), meal: row.meal, date: row.entry_date, createdAt: new Date(row.created_at).getTime(), snapshot:row.snapshot as Entry["snapshot"] })));
       if (profileResult.data) setGoals({ calories: profileResult.data.calorie_goal, protein: profileResult.data.protein_goal });
-    });
+    } finally {
+      if (showSyncing) setSyncing(false);
+    }
   }, [user]);
+
+  useEffect(() => { void loadDashboard(); }, [loadDashboard]);
 
   const dayEntries = useMemo(() => entries.filter((entry) => entry.date === date).sort((a, b) => b.createdAt - a.createdAt), [entries, date]);
   const groupedDayEntries = useMemo(() => [...meals,...new Set(dayEntries.map(entry=>entry.meal).filter(category=>!meals.includes(category)))].map(category=>({category,entries:dayEntries.filter(entry=>entry.meal===category)})).filter(group=>group.entries.length), [dayEntries]);
@@ -129,7 +137,7 @@ export default function Home() {
     <main className="home-page">
       <header className="app-header">
         <div className="brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div>
-        <div className="header-actions"><button className="header-create" onClick={() => setShowAdd(true)}><Plus /><span>New entry</span></button><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><SlidersHorizontal /></button></div>
+        <div className="header-actions"><button className="header-create" onClick={() => setShowAdd(true)}><Plus /><span>New entry</span></button><button className="icon-btn" onClick={() => void loadDashboard(true)} disabled={syncing} aria-label={syncing ? "Syncing Eats data" : "Sync Eats data"} title="Sync Eats data"><RefreshCw className={syncing ? "spin" : ""} /></button><button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="Open settings"><SlidersHorizontal /></button></div>
       </header>
 
       <section className="date-switcher">
@@ -271,9 +279,9 @@ function AuthScreen({ initialMessage = "" }: { initialMessage?: string }) {
     setBusy(false);
     if (result.error) setMessage(result.error.message);
   }
-  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>{sent ? "Type the 6-digit code from the email here. Tapping the link instead signs you in to your browser, which is a separate app to this one." : "Enter your email and we’ll send you a secure sign-in code. New emails automatically create an account."}</p>
+  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Password-free sign in</span><h1>Welcome back</h1><p>{sent ? `Type the ${emailCodeLength}-digit code from the email here. Tapping the link instead signs you in to your browser, which is a separate app to this one.` : "Enter your email and we’ll send you a secure sign-in code. New emails automatically create an account."}</p>
     {sent ? (
-      <form onSubmit={verifyCode}><label>Sign-in code<input className="code-input" inputMode="numeric" autoComplete="one-time-code" required autoFocus placeholder="000000" value={code} onChange={(e) => setCode(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy || !code.trim()}>{busy ? "Checking…" : "Sign in"}</button><button className="mode-switch" type="button" onClick={() => { setSent(false); setCode(""); setMessage(""); }}>Use a different email</button></form>
+      <form onSubmit={verifyCode}><label>Sign-in code<input className="code-input" inputMode="numeric" autoComplete="one-time-code" required autoFocus maxLength={emailCodeLength} placeholder="00000000" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, emailCodeLength))} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy || code.length !== emailCodeLength}>{busy ? "Checking…" : "Sign in"}</button><button className="mode-switch" type="button" onClick={() => { setSent(false); setCode(""); setMessage(""); }}>Use a different email</button></form>
     ) : (
       <form onSubmit={sendEmail}><label>Email<input type="email" autoComplete="email" required autoFocus placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></label>{message && <div className="auth-message">{message}</div>}<button className="primary full" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in code"}</button></form>
     )}
