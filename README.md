@@ -6,27 +6,29 @@
   </picture>
 </p>
 
-<h1 align="center">eats</h1>
+<h1 align="center">Eats</h1>
 
 <p align="center">
-  A simple, mobile-first calorie and macro tracker.
+  A premium, mobile-first food log for calories and macros.
 </p>
 
-A mobile-first calorie and macro tracker built with Next.js and Supabase. It tracks calories, protein, carbohydrates, and fat, with private cloud sync between devices.
+Eats is a Next.js and Supabase food tracker with private cloud sync, a personal meal library, barcode capture, and a ChatGPT-ready MCP connection.
 
 ## Current features
 
-- Private magic-link accounts with cloud sync
+- Password-free email-code accounts with cloud sync
 - Daily calorie, protein, carbohydrate, and fat tracking
 - Calendar history and logging for past dates
 - Reusable ingredients, meals, routines, and variants
 - Live barcode scanning with automatic nutrition lookup
-- ChatGPT-ready, review-before-logging meal action
-- Mobile-first design installable on an iPhone home screen
+- Quick logging from a new entry or a saved library meal
+- A visible Sync control for installed iPhone home-screen apps
+- Review-before-logging tools for ChatGPT via MCP
+- Mobile-first iOS-inspired design installable on an iPhone home screen
 
 Barcode nutrition comes from the free Open Food Facts database. Some products have incomplete public records. When that happens, enter the package values manually and save the ingredient. Eats associates those values with the barcode in your Supabase account, so later scans reuse them.
 
-Food photo and description analysis belongs in the Eats GPT inside ChatGPT. Eats does not require an OpenAI API key: it only receives a reviewed meal after the user explicitly approves it in the ChatGPT conversation.
+Eats does not require an OpenAI API key. ChatGPT can analyse a food photo or meal description, then writes to Eats only after the user explicitly approves the reviewed estimate.
 
 ## Run locally
 
@@ -68,7 +70,7 @@ In Supabase, open **Authentication → URL Configuration** and configure:
 - Vercel previews: `https://*-YOUR-VERCEL-TEAM.vercel.app/**`
 - Temporary phone testing: the HTTPS ngrok address followed by `/**`
 
-Entering a new email creates an account. Returning users receive a single-use magic link.
+Entering a new email creates an account. Returning users enter the eight-digit code sent by the project's Supabase email template. This works inside an installed iOS home-screen app, where a mail link can otherwise open Safari instead of Eats.
 
 ## Test account
 
@@ -113,61 +115,68 @@ Set `NEXT_PUBLIC_SITE_URL` to the final production URL and add that URL to Supab
 
 After deployment, open Eats in Safari, tap **Share**, select **Add to Home Screen**, and tap **Add**.
 
-## Eats GPT connection
+## ChatGPT MCP connection
 
-Eats includes two secure connection surfaces, both using the signed-in user's Supabase OAuth token and existing Row Level Security policies. Neither uses an OpenAI API key or Supabase secret key.
-
-### Custom GPT Action (the phone-first flow)
-
-Create an Eats GPT in ChatGPT and add an OAuth Action using this OpenAPI schema after deploying Eats:
+The production MCP server is:
 
 ```text
-https://YOUR-EATS-DOMAIN/.well-known/eats-gpt-openapi.json
+https://eats-rho.vercel.app/mcp
 ```
 
-Use OAuth authorization and token URLs from your Supabase project:
+It uses the signed-in person's Supabase OAuth token and Row Level Security. It does not expose Supabase secrets or require an OpenAI API key.
+
+### Configure Supabase
+
+1. In **Authentication → OAuth Server**, enable the Supabase OAuth Server.
+2. Set the Site URL to `https://eats-rho.vercel.app`.
+3. Set the authorization path to `/oauth/consent`.
+4. Enable **Allow Dynamic OAuth Apps** so compatible MCP clients can register their own secure connection.
+
+### Connect in ChatGPT
+
+1. Open **Settings → Apps / Plugins** in ChatGPT.
+2. Create a custom app/connector with `https://eats-rho.vercel.app/mcp`.
+3. Connect an Eats account once, enter the emailed eight-digit code, and approve the Eats consent screen.
+4. In a normal ChatGPT conversation, select Eats, upload a meal photo or describe food, review the nutrition estimate, then explicitly approve logging it.
+
+Available tools:
+
+- `get_daily_totals` and `get_food_log`
+- `list_meals` and `list_routines`
+- `log_food` for an approved photo or text estimate
+- `log_saved_meal` and `log_saved_routine`
+
+Write tools are marked as non-read-only and should run only after a clear user approval. Custom-app availability depends on the ChatGPT account, workspace, region, and interface.
+
+### Legacy Custom GPT Action
+
+The deployed OpenAPI schema remains available at:
 
 ```text
-https://YOUR-PROJECT.supabase.co/auth/v1/oauth/authorize
-https://YOUR-PROJECT.supabase.co/auth/v1/oauth/token
+https://eats-rho.vercel.app/.well-known/eats-gpt-openapi.json
 ```
 
-In the GPT instructions, require this flow: analyse the uploaded photo or written description; state that calories and macros are an estimate; show the proposed meal and category; ask for an explicit approval; only then call `logReviewedMeal`.
+It is retained for compatibility. The MCP app route is the preferred connection model for current ChatGPT testing; a custom GPT should use an app/plugin or an Action, not both.
 
-Before it can connect, enable **Authentication → OAuth Server** in Supabase, set the authorization path to `/oauth/consent`, and register the exact callback URL shown in the GPT Action editor as a confidential OAuth client. The built-in Eats consent screen lets each user link only their own account.
+### Test MCP locally
 
-### MCP (desktop testing)
+1. Run Eats locally and sign in.
+2. Open `http://localhost:3000/mcp-test` and copy the temporary test token.
+3. Run the MCP Inspector:
 
-The `/mcp` server still provides totals, logs, saved meals, saved routines, and write tools. It now publishes OAuth protected-resource metadata so compatible clients can discover the Supabase OAuth server.
+   ```bash
+   npx @modelcontextprotocol/inspector@latest
+   ```
 
-### Test MCP locally before deployment
+4. Add a Streamable HTTP server at `http://localhost:3000/mcp` with `Authorization: Bearer YOUR_COPIED_TOKEN`.
+5. Test authentication, tool inputs, tool results, and write approval behaviour.
 
-Deployment is not required for initial MCP development:
-
-1. Run Eats locally.
-2. Sign in to Eats and open `http://localhost:3000/mcp-test`.
-3. Copy the temporary test token.
-4. Test the local `/mcp` route with MCP Inspector.
-5. Test tool inputs, outputs, and authentication locally.
-6. Use ngrok when ChatGPT itself needs to reach the local server over HTTPS.
-7. Deploy to Vercel only after the local tools work correctly.
-
-Planned local commands:
-
-```bash
-npm run dev
-npx @modelcontextprotocol/inspector@latest
-ngrok http 3000
-```
-
-In Inspector, use Streamable HTTP with URL `http://localhost:3000/mcp`. Add an `Authorization` header whose value is `Bearer YOUR_COPIED_TOKEN`. Through ngrok, the endpoint is `https://YOUR-NGROK-DOMAIN/mcp`.
-
-The copied token is temporary and should be treated like a password. Do not commit or share it. If Inspector reports that it expired, revisit `/mcp-test` and copy a fresh token.
-
-Connecting the deployed server directly to ChatGPT will require an OAuth account-linking layer. That production step is intentionally deferred until the app and local MCP tools are working.
+For a remote client, expose the local server through HTTPS with `ngrok http 3000` and use the ngrok URL plus `/mcp`. Treat copied tokens like passwords; do not commit or share them.
 
 ## Security
 
-Supabase Row Level Security is enabled for profiles, food entries, ingredients, meals, meal ingredients, routines, and routine meals. Authenticated users can only access rows associated with their account.
+Supabase Row Level Security is enabled for profiles, food entries, ingredients, meals, meal ingredients, routines, and routine meals. Authenticated users can only access rows associated with their own account.
+
+The MCP and reviewed-meal endpoints validate a supplied Supabase bearer token before querying or inserting data.
 
 Never expose a Supabase secret key in client-side code or commit environment files containing credentials.
