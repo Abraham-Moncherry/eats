@@ -5,6 +5,7 @@ import { CircleCheck as CheckCircle, CircleX as XCircle } from "lucide-react";
 import { getSiteUrl, supabase } from "@/lib/supabase";
 
 type Details = { authorization_id: string; client: { name: string }; scope: string; redirect_uri: string };
+const emailCodeLength = 8;
 
 export default function OAuthConsent() {
   const [details, setDetails] = useState<Details | null>(null);
@@ -35,13 +36,13 @@ export default function OAuthConsent() {
     const redirectTo = `${getSiteUrl()}/oauth/consent?authorization_id=${encodeURIComponent(authorizationId)}`;
     const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo, shouldCreateUser: true } });
     if (error) setMessage(error.message);
-    else { setCodeSent(true); setMessage(`We emailed a six-digit code to ${email}.`); }
+    else { setCodeSent(true); setMessage(`We emailed an ${emailCodeLength}-digit code to ${email}.`); }
     setBusy(false);
   }
 
   async function verifyCode(event: React.FormEvent) {
     event.preventDefault();
-    if (!supabase || !email || code.length !== 6) return;
+    if (!supabase || !email || code.length !== emailCodeLength) return;
     setBusy(true);
     const { error } = await supabase.auth.verifyOtp({ email, token: code, type: "email" });
     if (error) { setMessage(error.message); setBusy(false); return; }
@@ -62,5 +63,5 @@ export default function OAuthConsent() {
   }
 
   const directVisit = !authorizationId;
-  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Connect ChatGPT</span><h1>{directVisit ? "Connect from ChatGPT" : "Allow Eats access?"}</h1>{details ? <><p><strong>{details.client.name}</strong> will be able to add the meals you explicitly approve. It cannot access other Eats accounts.</p><p className="privacy-note">Requested access: {details.scope || "add reviewed meals"}</p><div className="confirm-actions"><button className="secondary" disabled={busy} onClick={() => decide(false)}><XCircle /> Deny</button><button className="primary" disabled={busy} onClick={() => decide(true)}><CheckCircle /> Allow & continue</button></div></> : directVisit ? <><p>This page opens automatically after you tap <strong>Connect Eats</strong> in ChatGPT. There is nothing to sign in to here yet.</p><a className="primary full" href="/">Open Eats</a></> : <>{message && <p className="auth-message">{message}</p>}{codeSent ? <form onSubmit={verifyCode}><label>Six-digit code<input inputMode="numeric" autoComplete="one-time-code" maxLength={6} pattern="[0-9]{6}" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="123456" required /></label><button className="primary full" disabled={busy || code.length !== 6}>{busy ? "Verifying…" : "Verify & continue"}</button><button className="auth-link" type="button" disabled={busy} onClick={() => { setCodeSent(false); setCode(""); setMessage("Enter your email to receive a new code."); }}>Use another email or resend</button></form> : <form onSubmit={sendMagicLink}><label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required /></label><button className="primary full" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in code"}</button></form>}</>}</section></main>;
+  return <main className="auth-page"><div className="auth-brand"><img className="brand-logo" src="/eats-logo.png" alt="" /><span>eats</span></div><section className="auth-card"><span className="eyebrow">Connect ChatGPT</span><h1>{directVisit ? "Connect from ChatGPT" : "Allow Eats access?"}</h1>{details ? <><p><strong>{details.client.name}</strong> will be able to add the meals you explicitly approve. It cannot access other Eats accounts.</p><p className="privacy-note">Requested access: {details.scope || "add reviewed meals"}</p><div className="confirm-actions"><button className="secondary" disabled={busy} onClick={() => decide(false)}><XCircle /> Deny</button><button className="primary" disabled={busy} onClick={() => decide(true)}><CheckCircle /> Allow & continue</button></div></> : directVisit ? <><p>This page opens automatically after you tap <strong>Connect Eats</strong> in ChatGPT. There is nothing to sign in to here yet.</p><a className="primary full" href="/">Open Eats</a></> : <>{message && <p className="auth-message">{message}</p>}{codeSent ? <form onSubmit={verifyCode}><label>{emailCodeLength}-digit code<input inputMode="numeric" autoComplete="one-time-code" maxLength={emailCodeLength} pattern={`[0-9]{${emailCodeLength}}`} value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, emailCodeLength))} placeholder="12345678" required /></label><button className="primary full" disabled={busy || code.length !== emailCodeLength}>{busy ? "Verifying…" : "Verify & continue"}</button><button className="auth-link" type="button" disabled={busy} onClick={() => { setCodeSent(false); setCode(""); setMessage("Enter your email to receive a new code."); }}>Use another email or resend</button></form> : <form onSubmit={sendMagicLink}><label>Email address<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" required /></label><button className="primary full" disabled={busy}>{busy ? "Sending…" : "Email me a sign-in code"}</button></form>}</>}</section></main>;
 }
