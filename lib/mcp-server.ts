@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 type Macros = { calories: number; protein: number; carbohydrates: number; fat: number };
-type IngredientRow = { name: string; brand: string | null; serving_amount: number; serving_unit: string; calories: number; protein: number; carbohydrates: number; fat: number };
+type IngredientRow = { id: string; name: string; brand: string | null; barcode?: string | null; serving_amount: number; serving_unit: string; calories: number; protein: number; carbohydrates: number; fat: number; source?: string };
 type MealIngredientRow = { amount: number; unit: string; ingredients: IngredientRow | null };
 type MealRow = { id: string; name: string; notes: string | null; meal_ingredients: MealIngredientRow[] };
 
@@ -44,6 +44,13 @@ function failure(message: string) {
 
 const dateInput = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD").optional().describe("Date in YYYY-MM-DD format; defaults to today in Melbourne");
 const mealInput = z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]).optional().describe("Meal category; defaults from the current time in Melbourne");
+const unitInput = z.enum(["g", "ml", "item", "scoop", "tsp", "tbsp", "serving"]);
+const macroInput = z.number().min(0).max(3_000);
+const ingredientItemInput = z.object({
+  ingredient_id: z.string().uuid().describe("Ingredient ID returned by list_ingredients or create_ingredient"),
+  amount: z.number().positive().max(100_000).describe("Amount used in the meal"),
+  unit: unitInput.describe("Unit for the amount"),
+});
 
 function melbourneMeal() {
   const hour = Number(new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "2-digit", hour12: false }).format(new Date()));
@@ -54,6 +61,7 @@ export function createEatsMcpServer(db: SupabaseClient, userId: string) {
   const server = new McpServer({ name: "eats", version: "0.1.0" });
   const readOnly = { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false };
   const writeOnly = { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false };
+  const destructiveWrite = { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false };
 
   server.registerTool("get_daily_totals", {
     title: "Get daily nutrition totals",
@@ -71,6 +79,55 @@ export function createEatsMcpServer(db: SupabaseClient, userId: string) {
     return success({ date: selectedDate, entries: data?.length ?? 0, totals: roundMacros(totals) });
   });
 
+  server.registerTool("get_daily_progress", {
+    title: "Get daily calorie and protein goal progress",
+    description: "Show the user's calorie and protein targets alongside nutrition logged for a date. Use this when asked how much is left or whether a goal has been met.",
+    inputSchema: { date: dateInput },
+    annotations: readOnly,
+  }, async ({ date }) => {
+    const selectedDate = date ?? melbourneToday();
+    const [{ data: profile, error: profileError }, { data: entries, error: entriesError }] = await Promise.all([
+      db.from("profiles").select("calorie_goal,protein_goal").eq("user_id", userId).maybeSingle(),
+      db.from("food_entries").select("calories,protein,carbohydrates,fat").eq("entry_date", selectedDate),
+    ]);
+    if (profileError) return failure(`Could not load nutrition goals: ${profileError.message}`);
+    if (entriesError) return failure(`Could not load daily progress: ${entriesError.message}`);
+    const consumed = (entries ?? []).reduce((sum, row) => ({
+      calories: sum.calories + Number(row.calories || 0), protein: sum.protein + Number(row.protein || 0),
+      carbohydrates: sum.carbohydrates + Number(row.carbohydrates || 0), fat: sum.fat + Number(row.fat || 0),
+    }), emptyMacros());
+    const goals = { calories: Number(profile?.calorie_goal ?? 2200), protein: Number(profile?.protein_goal ?? 150) };
+    const totals = roundMacros(consumed);
+    return success({
+      date: selectedDate,
+      goals,
+      consumed: totals,
+      remaining: { calories: Math.max(goals.calories - totals.calories, 0), protein: Math.max(goals.protein - totals.protein, 0) },
+      goal_met: { calories: totals.calories >= goals.calories, protein: totals.protein >= goals.protein },
+    });
+  });
+
+  server.registerTool("set_nutrition_goals", {
+    title: "Set daily calorie and protein goals",
+    description: "Update one or both of the user's daily calorie and protein targets. Confirm the requested targets before changing them.",
+    inputSchema: {
+      calorie_goal: z.number().int().min(1).max(20_000).optional().describe("Daily calorie target"),
+      protein_goal: z.number().min(1).max(2_000).optional().describe("Daily protein target in grams"),
+    },
+    annotations: writeOnly,
+  }, async ({ calorie_goal, protein_goal }) => {
+    if (calorie_goal === undefined && protein_goal === undefined) return failure("Provide a calorie goal, a protein goal, or both.");
+    const { data: existing, error: loadError } = await db.from("profiles").select("calorie_goal,protein_goal").eq("user_id", userId).maybeSingle();
+    if (loadError) return failure(`Could not load nutrition goals: ${loadError.message}`);
+    const goals = {
+      calorie_goal: calorie_goal ?? Number(existing?.calorie_goal ?? 2200),
+      protein_goal: protein_goal ?? Number(existing?.protein_goal ?? 150),
+    };
+    const { data, error } = await db.from("profiles").upsert({ user_id: userId, ...goals, updated_at: new Date().toISOString() }).select("calorie_goal,protein_goal").single();
+    if (error) return failure(`Could not save nutrition goals: ${error.message}`);
+    return success({ updated: true, goals: { calories: data.calorie_goal, protein: data.protein_goal } });
+  });
+
   server.registerTool("get_food_log", {
     title: "Get food log",
     description: "List the meals and foods logged on a date, including their nutrition.",
@@ -81,6 +138,58 @@ export function createEatsMcpServer(db: SupabaseClient, userId: string) {
     const { data, error } = await db.from("food_entries").select("id,name,meal,meal_name,routine_name,calories,protein,carbohydrates,fat,entry_date,created_at,snapshot").eq("entry_date", selectedDate).order("created_at");
     if (error) return failure(`Could not load the food log: ${error.message}`);
     return success({ date: selectedDate, entries: data ?? [] });
+  });
+
+  server.registerTool("update_food_log_entry", {
+    title: "Edit a logged food entry",
+    description: "Change a previously logged food or meal's name, meal category, date, or nutrition. Call get_food_log first to obtain the exact entry ID, and confirm the requested changes before editing.",
+    inputSchema: {
+      entry_id: z.string().uuid().describe("Exact food-log entry ID returned by get_food_log"),
+      name: z.string().trim().min(1).max(200).optional().describe("Replacement food or meal name"),
+      meal: z.enum(["Breakfast", "Lunch", "Dinner", "Snack"]).optional().describe("Replacement meal category"),
+      date: dateInput.describe("Replacement log date"),
+      calories: z.number().int().min(0).max(20_000).optional().describe("Replacement calories"),
+      protein: z.number().min(0).max(2_000).optional().describe("Replacement protein in grams"),
+      carbohydrates: z.number().min(0).max(3_000).optional().describe("Replacement carbohydrates in grams"),
+      fat: z.number().min(0).max(2_000).optional().describe("Replacement fat in grams"),
+    },
+    annotations: writeOnly,
+  }, async ({ entry_id, name, meal, date, calories, protein, carbohydrates, fat }) => {
+    const changes: Record<string, string | number> = {};
+    if (name !== undefined) changes.name = name;
+    if (meal !== undefined) changes.meal = meal;
+    if (date !== undefined) changes.entry_date = date;
+    if (calories !== undefined) changes.calories = Math.round(calories);
+    if (protein !== undefined) changes.protein = rounded(protein);
+    if (carbohydrates !== undefined) changes.carbohydrates = rounded(carbohydrates);
+    if (fat !== undefined) changes.fat = rounded(fat);
+    if (!Object.keys(changes).length) return failure("Provide at least one value to update.");
+    const { data, error } = await db.from("food_entries")
+      .update(changes)
+      .eq("id", entry_id)
+      .eq("user_id", userId)
+      .select("id,name,meal,meal_name,routine_name,entry_date,calories,protein,carbohydrates,fat,created_at,snapshot")
+      .maybeSingle();
+    if (error) return failure(`Could not update food-log entry: ${error.message}`);
+    if (!data) return failure("That food-log entry was not found in this Eats account.");
+    return success({ updated: true, entry: data });
+  });
+
+  server.registerTool("delete_food_log_entry", {
+    title: "Delete a logged food entry",
+    description: "Permanently remove one food-log entry. Call get_food_log first to identify the exact entry, then ask the user to confirm deletion before calling this tool.",
+    inputSchema: { entry_id: z.string().uuid().describe("Exact food-log entry ID returned by get_food_log") },
+    annotations: destructiveWrite,
+  }, async ({ entry_id }) => {
+    const { data, error } = await db.from("food_entries")
+      .delete()
+      .eq("id", entry_id)
+      .eq("user_id", userId)
+      .select("id,name,meal,entry_date,calories,protein,carbohydrates,fat")
+      .maybeSingle();
+    if (error) return failure(`Could not delete food-log entry: ${error.message}`);
+    if (!data) return failure("That food-log entry was not found in this Eats account.");
+    return success({ deleted: true, entry: data });
   });
 
   server.registerTool("list_meals", {
@@ -95,6 +204,70 @@ export function createEatsMcpServer(db: SupabaseClient, userId: string) {
     if (error) return failure(`Could not load meals: ${error.message}`);
     const meals = ((data ?? []) as unknown as MealRow[]).map((meal) => ({ ...meal, nutrition: mealMacros(meal) }));
     return success({ count: meals.length, meals });
+  });
+
+  server.registerTool("list_ingredients", {
+    title: "List saved ingredients",
+    description: "List the user's reusable ingredient library, including serving size and nutrition. Search before creating a new ingredient to avoid duplicates.",
+    inputSchema: { search: z.string().trim().max(100).optional().describe("Optional ingredient-name search") },
+    annotations: readOnly,
+  }, async ({ search }) => {
+    let query = db.from("ingredients").select("id,name,brand,barcode,serving_amount,serving_unit,calories,protein,carbohydrates,fat,source").order("name");
+    if (search) query = query.ilike("name", `%${search}%`);
+    const { data, error } = await query;
+    if (error) return failure(`Could not load ingredients: ${error.message}`);
+    return success({ count: data?.length ?? 0, ingredients: data ?? [] });
+  });
+
+  server.registerTool("create_ingredient", {
+    title: "Create a library ingredient",
+    description: "Save a reusable ingredient with nutrition per serving. Confirm all nutrition values with the user before creating it.",
+    inputSchema: {
+      name: z.string().trim().min(1).max(200),
+      brand: z.string().trim().max(200).optional(),
+      barcode: z.string().trim().min(1).max(100).optional(),
+      serving_amount: z.number().positive().max(100_000).default(100),
+      serving_unit: unitInput.default("g"),
+      calories: z.number().min(0).max(20_000),
+      protein: macroInput.default(0).describe("Protein grams per serving"),
+      carbohydrates: macroInput.default(0).describe("Carbohydrate grams per serving"),
+      fat: macroInput.default(0).describe("Fat grams per serving"),
+    },
+    annotations: writeOnly,
+  }, async ({ name, brand, barcode, serving_amount, serving_unit, calories, protein, carbohydrates, fat }) => {
+    const { data, error } = await db.from("ingredients").insert({
+      user_id: userId, name, brand: brand || null, barcode: barcode || null, serving_amount, serving_unit,
+      calories, protein, carbohydrates, fat, source: "manual",
+    }).select("id,name,brand,barcode,serving_amount,serving_unit,calories,protein,carbohydrates,fat,source").single();
+    if (error) return failure(`Could not create ingredient: ${error.message}`);
+    return success({ created: true, ingredient: data });
+  });
+
+  server.registerTool("create_meal", {
+    title: "Create a library meal",
+    description: "Save a reusable meal from ingredients already in the user's library. Call list_ingredients first and confirm the ingredient amounts before creating it.",
+    inputSchema: {
+      name: z.string().trim().min(1).max(200),
+      notes: z.string().trim().max(2_000).optional(),
+      ingredients: z.array(ingredientItemInput).min(1).max(50).describe("Ingredients and amounts, in display order"),
+    },
+    annotations: writeOnly,
+  }, async ({ name, notes, ingredients }) => {
+    const ids = ingredients.map((item) => item.ingredient_id);
+    if (new Set(ids).size !== ids.length) return failure("Use each ingredient only once in a meal; combine duplicate amounts first.");
+    const { data: found, error: ingredientError } = await db.from("ingredients").select("id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat").in("id", ids);
+    if (ingredientError) return failure(`Could not validate meal ingredients: ${ingredientError.message}`);
+    if ((found?.length ?? 0) !== ids.length) return failure("One or more ingredients were not found in this Eats account.");
+    const { data: meal, error: mealError } = await db.from("meals").insert({ user_id: userId, name, notes: notes || null }).select("id,name,notes").single();
+    if (mealError || !meal) return failure(`Could not create meal: ${mealError?.message ?? "No meal was returned"}`);
+    const { error: linkError } = await db.from("meal_ingredients").insert(ingredients.map((item, position) => ({ user_id: userId, meal_id: meal.id, ingredient_id: item.ingredient_id, amount: item.amount, unit: item.unit, position })));
+    if (linkError) {
+      await db.from("meals").delete().eq("id", meal.id);
+      return failure(`Could not add ingredients to meal: ${linkError.message}`);
+    }
+    const ingredientById = new Map(((found ?? []) as IngredientRow[]).map((ingredient) => [ingredient.id, ingredient]));
+    const savedMeal: MealRow = { ...meal, meal_ingredients: ingredients.map((item) => ({ amount: item.amount, unit: item.unit, ingredients: ingredientById.get(item.ingredient_id) ?? null })) };
+    return success({ created: true, meal: { ...savedMeal, nutrition: mealMacros(savedMeal) } });
   });
 
   server.registerTool("list_routines", {
@@ -119,6 +292,35 @@ export function createEatsMcpServer(db: SupabaseClient, userId: string) {
       return { id: routine.id, name: routine.name, suggested_period: routine.suggested_period, meals, nutrition: roundMacros(nutrition) };
     });
     return success({ count: routines.length, routines });
+  });
+
+  server.registerTool("create_routine", {
+    title: "Create a library routine",
+    description: "Save a reusable routine from meals already in the user's library. Call list_meals first and confirm the included meals and quantities before creating it.",
+    inputSchema: {
+      name: z.string().trim().min(1).max(200),
+      suggested_period: z.enum(["morning", "midday", "evening", "anytime"]).default("anytime").describe("When this routine is usually eaten"),
+      meals: z.array(z.object({
+        meal_id: z.string().uuid().describe("Meal ID returned by list_meals"),
+        quantity: z.number().positive().max(20).default(1),
+      })).min(1).max(30).describe("Meals and quantities, in display order"),
+    },
+    annotations: writeOnly,
+  }, async ({ name, suggested_period, meals }) => {
+    const ids = meals.map((item) => item.meal_id);
+    if (new Set(ids).size !== ids.length) return failure("Use each meal only once in a routine; increase its quantity instead.");
+    const { data: found, error: lookupError } = await db.from("meals").select("id,name").in("id", ids);
+    if (lookupError) return failure(`Could not validate routine meals: ${lookupError.message}`);
+    if ((found?.length ?? 0) !== ids.length) return failure("One or more meals were not found in this Eats account.");
+    const { data: routine, error: routineError } = await db.from("routines").insert({ user_id: userId, name, suggested_period }).select("id,name,suggested_period").single();
+    if (routineError || !routine) return failure(`Could not create routine: ${routineError?.message ?? "No routine was returned"}`);
+    const { error: linkError } = await db.from("routine_meals").insert(meals.map((item, position) => ({ user_id: userId, routine_id: routine.id, meal_id: item.meal_id, quantity: item.quantity, position })));
+    if (linkError) {
+      await db.from("routines").delete().eq("id", routine.id);
+      return failure(`Could not add meals to routine: ${linkError.message}`);
+    }
+    const mealNames = new Map((found ?? []).map((meal) => [meal.id, meal.name]));
+    return success({ created: true, routine: { ...routine, meals: meals.map((item) => ({ ...item, name: mealNames.get(item.meal_id) })) } });
   });
 
   server.registerTool("log_food", {

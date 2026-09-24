@@ -8,37 +8,116 @@
 
 <h1 align="center">Eats</h1>
 
-<p align="center">
-  A premium, mobile-first food log for calories and macros.
-</p>
+<p align="center">A premium, mobile-first nutrition tracker with private Supabase sync and a ChatGPT MCP connection.</p>
 
-Eats is a Next.js and Supabase food tracker with private cloud sync, a personal meal library, barcode capture, and a ChatGPT-ready MCP connection.
+## Overview
 
-## Current features
+Eats lets a person log food, save ingredients and reusable meals, scan barcodes, and keep nutrition history private to their account. It is designed as an iPhone-friendly Progressive Web App (PWA), with an optional ChatGPT connection for reviewing a food photo or written meal description before it is saved.
 
-- Password-free email-code accounts with cloud sync
-- Daily calorie, protein, carbohydrate, and fat tracking
-- Calendar history and logging for past dates
-- Reusable ingredients, meals, routines, and variants
-- Live barcode scanning with automatic nutrition lookup
-- Quick logging from a new entry or a saved library meal
-- A visible Sync control for installed iPhone home-screen apps
-- Review-before-logging tools for ChatGPT via MCP
-- Mobile-first iOS-inspired design installable on an iPhone home screen
+ChatGPT estimates nutrition; Eats remains the system of record. Nothing is written by the AI until the person clearly approves the proposed entry.
 
-Barcode nutrition comes from the free Open Food Facts database. Some products have incomplete public records. When that happens, enter the package values manually and save the ingredient. Eats associates those values with the barcode in your Supabase account, so later scans reuse them.
+## Highlights
 
-Eats does not require an OpenAI API key. ChatGPT can analyse a food photo or meal description, then writes to Eats only after the user explicitly approves the reviewed estimate.
+- iOS-inspired, installable PWA with an in-app **Sync** control
+- Daily calories, protein, carbohydrates, and fat, including historical dates
+- Personal ingredient, saved-meal, and routine library
+- Barcode capture using the Open Food Facts database
+- Password-free email-code authentication
+- Private cloud sync enforced by Supabase Row Level Security (RLS)
+- MCP tools for ChatGPT to inspect goals and logs, build a personal food library, and log only user-approved meals
 
-## Run locally
+## Technology
+
+| Area | Technology | Purpose |
+| --- | --- | --- |
+| App | Next.js 16, React 19, TypeScript | PWA user interface, server routes, and deployment build |
+| Styling and UI | CSS, Lucide icons | Mobile-first iOS-style interface |
+| Authentication and database | Supabase Auth and Postgres | Email-code login, account identity, cloud data, and RLS |
+| AI connection | Model Context Protocol (MCP) SDK, Zod | Structured ChatGPT tools with validated inputs |
+| Barcode capture | ZXing Browser, Open Food Facts | Camera scanning and public nutrition lookup |
+| Hosting | Vercel | Production deployment for the Next.js app and MCP endpoint |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  P["Eats PWA\niPhone / browser"] -->|Supabase session| S["Supabase Auth"]
+  P -->|User-scoped CRUD| D["Supabase Postgres\nRLS-protected tables"]
+  P -->|Authenticated barcode lookup| B["Next.js barcode route"]
+  B --> O["Open Food Facts"]
+
+  C["ChatGPT\nphoto or meal description"] -->|OAuth bearer token + MCP| M["Next.js /mcp"]
+  M -->|validated user identity| D
+  M -->|approved write tools only| D
+
+  S --> D
+```
+
+### Data and privacy model
+
+Supabase holds the application data. Each record is associated with `user_id`, and RLS policies only permit an authenticated user to read or change rows belonging to their own Supabase account.
+
+| Table | Stores |
+| --- | --- |
+| `profiles` | Calorie and protein targets |
+| `food_entries` | Daily meal logs and nutrition snapshots |
+| `ingredients` | Personal ingredients, serving information, and barcode matches |
+| `meals` and `meal_ingredients` | Reusable saved meals and their ingredients |
+| `routines` and `routine_meals` | Reusable meal routines |
+
+The migrations in `supabase/migrations/` create these tables, indexes, validation checks, and RLS policies. The browser uses only a Supabase **publishable** key; never put a secret or service-role key in a `NEXT_PUBLIC_*` variable.
+
+### ChatGPT and MCP model
+
+The MCP endpoint is `https://eats-rho.vercel.app/mcp`. A compatible ChatGPT app/connector signs in through Supabase OAuth and receives the person's bearer token. The endpoint validates that token with Supabase, then creates a request-scoped database client operating under that person's RLS permissions.
+
+```mermaid
+sequenceDiagram
+  participant U as Person
+  participant C as ChatGPT
+  participant O as Supabase OAuth
+  participant M as Eats MCP
+  participant D as Supabase Postgres
+
+  U->>C: Upload photo or describe a meal
+  C->>U: Show estimated nutrition and proposed meal category
+  U->>C: Explicitly approve logging
+  C->>O: Connect once via OAuth
+  O-->>C: User bearer token
+  C->>M: Call approved write tool with bearer token
+  M->>O: Validate token
+  M->>D: Insert using user-scoped RLS access
+  D-->>M: Logged entry
+  M-->>C: Confirmation
+```
+
+Available MCP tools:
+
+- Read: `get_daily_totals`, `get_daily_progress`, `get_food_log`, `list_ingredients`, `list_meals`, `list_routines`
+- Write: `set_nutrition_goals`, `create_ingredient`, `create_meal`, `create_routine`, `log_food`, `log_saved_meal`, `log_saved_routine`, `update_food_log_entry`, `delete_food_log_entry`
+
+`get_daily_progress` includes the calorie and protein targets, consumed totals, remaining amount, and whether each target is met. The library tools preserve the existing ingredient → meal → routine structure, so meals can later be logged through `log_saved_meal` and routines through `log_saved_routine`.
+
+Use `update_food_log_entry` to correct a logged entry's name, category, date, or nutrition. `delete_food_log_entry` removes only the confirmed entry ID and is explicitly marked destructive.
+
+Write tools are explicitly non-read-only. The recommended ChatGPT instruction is: estimate first, show the review, ask for approval, then and only then call a write tool.
+
+## Running locally
+
+### Requirements
+
+- Node.js 20 or later
+- A Supabase project
+- Supabase CLI, or access to the Supabase SQL Editor
+
+### 1. Install and configure
 
 ```bash
 npm install
 cp .env.example .env.local
-npm run dev
 ```
 
-Create a Supabase project and copy the project URL and publishable key from **Project Settings → API Keys** into `.env.local`:
+Add your project values to `.env.local`:
 
 ```text
 NEXT_PUBLIC_SUPABASE_URL=
@@ -46,137 +125,106 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 ```
 
-The current Supabase key is called the **publishable key**. Do not use a secret key in browser code. The legacy anon-key variable remains only as a compatibility fallback.
+The legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as a compatibility fallback, but new projects should use the publishable key.
 
-Apply the database migrations with the linked Supabase CLI project:
+### 2. Create the database
+
+With a linked Supabase project:
 
 ```bash
 npx supabase db push
 ```
 
-Alternatively, run these files in the Supabase SQL Editor in order:
+Or run these migrations in the Supabase SQL Editor, in order:
 
 1. `supabase/migrations/20260808000000_initial_schema.sql`
 2. `supabase/migrations/20260809000000_meals_and_routines.sql`
 
-Then open `http://localhost:3000`.
-
-## Supabase authentication
-
-In Supabase, open **Authentication → URL Configuration** and configure:
-
-- Site URL: the final Vercel URL in production
-- Additional redirect URL: `http://localhost:3000/**`
-- Vercel previews: `https://*-YOUR-VERCEL-TEAM.vercel.app/**`
-- Temporary phone testing: the HTTPS ngrok address followed by `/**`
-
-Entering a new email creates an account. Returning users enter the eight-digit code sent by the project's Supabase email template. This works inside an installed iOS home-screen app, where a mail link can otherwise open Safari instead of Eats.
-
-## Test account
-
-No test account is created automatically. Use a Gmail plus alias to keep test data separate:
-
-```text
-Real account: monsieurcheri@gmail.com
-Test account: monsieurcheri+eats-test@gmail.com
-```
-
-The test-account magic link arrives in the normal `monsieurcheri@gmail.com` inbox, but Supabase treats the alias as a separate user with separate meals, routines, logs, and goals.
-
-## Test on an iPhone before deployment
-
-Run Next.js so it is reachable outside localhost:
+### 3. Start Eats
 
 ```bash
-npm run dev -- --hostname 0.0.0.0
+npm run dev
 ```
 
-In another terminal, expose it with ngrok:
+Open [http://localhost:3000](http://localhost:3000).
+
+For a production build check:
 
 ```bash
-ngrok http 3000
+npm run build
 ```
 
-Add the ngrok HTTPS URL to the Supabase redirect allowlist, then open it in Safari. Camera access requires HTTPS. If Safari has cached an older build, close the tab and reopen the URL.
+## Configure Supabase authentication
 
-## Deploy to Vercel
+Eats uses password-free email codes. In **Authentication → URL Configuration**, configure:
 
-Import this repository in Vercel and keep the detected Next.js settings. Add these environment variables:
+- Site URL: your final production URL
+- Local redirect URL: `http://localhost:3000/**`
+- Vercel preview URL: `https://*-YOUR-VERCEL-TEAM.vercel.app/**`
+- Optional phone-test URL: your HTTPS ngrok URL followed by `/**`
 
-```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-NEXT_PUBLIC_SITE_URL
-```
+The email template sends an eight-digit code. This avoids the poor hand-off experience of email magic links in an installed iOS home-screen app.
 
-Set `NEXT_PUBLIC_SITE_URL` to the final production URL and add that URL to Supabase Authentication settings.
+## Use Eats with ChatGPT
 
-## Add Eats to an iPhone home screen
+### Configure Supabase OAuth
 
-After deployment, open Eats in Safari, tap **Share**, select **Add to Home Screen**, and tap **Add**.
+In **Authentication → OAuth Server**:
 
-## ChatGPT MCP connection
-
-The production MCP server is:
-
-```text
-https://eats-rho.vercel.app/mcp
-```
-
-It uses the signed-in person's Supabase OAuth token and Row Level Security. It does not expose Supabase secrets or require an OpenAI API key.
-
-### Configure Supabase
-
-1. In **Authentication → OAuth Server**, enable the Supabase OAuth Server.
+1. Enable the Supabase OAuth Server.
 2. Set the Site URL to `https://eats-rho.vercel.app`.
 3. Set the authorization path to `/oauth/consent`.
-4. Enable **Allow Dynamic OAuth Apps** so compatible MCP clients can register their own secure connection.
+4. Enable **Allow Dynamic OAuth Apps** for compatible MCP clients.
 
-### Connect in ChatGPT
+### Connect ChatGPT
 
-1. Open **Settings → Apps / Plugins** in ChatGPT.
-2. Create a custom app/connector with `https://eats-rho.vercel.app/mcp`.
-3. Connect an Eats account once, enter the emailed eight-digit code, and approve the Eats consent screen.
-4. In a normal ChatGPT conversation, select Eats, upload a meal photo or describe food, review the nutrition estimate, then explicitly approve logging it.
+1. In ChatGPT, open **Settings → Apps / Plugins**.
+2. Create or connect an Eats custom app/connector using `https://eats-rho.vercel.app/mcp`.
+3. Sign in to Eats once with the emailed eight-digit code and approve the consent screen.
+4. Start a normal ChatGPT conversation, select Eats, upload a food photo or describe a meal, review the estimate, and explicitly approve logging.
 
-Available tools:
-
-- `get_daily_totals` and `get_food_log`
-- `list_meals` and `list_routines`
-- `log_food` for an approved photo or text estimate
-- `log_saved_meal` and `log_saved_routine`
-
-Write tools are marked as non-read-only and should run only after a clear user approval. Custom-app availability depends on the ChatGPT account, workspace, region, and interface.
-
-### Legacy Custom GPT Action
-
-The deployed OpenAPI schema remains available at:
-
-```text
-https://eats-rho.vercel.app/.well-known/eats-gpt-openapi.json
-```
-
-It is retained for compatibility. The MCP app route is the preferred connection model for current ChatGPT testing; a custom GPT should use an app/plugin or an Action, not both.
+ChatGPT app availability varies by account, workspace, region, and interface. The legacy Custom GPT Action schema remains available at `https://eats-rho.vercel.app/.well-known/eats-gpt-openapi.json`; use either the MCP app/plugin connection or an Action for a GPT, not both.
 
 ### Test MCP locally
 
-1. Run Eats locally and sign in.
-2. Open `http://localhost:3000/mcp-test` and copy the temporary test token.
-3. Run the MCP Inspector:
+1. Start Eats and sign in.
+2. Visit `http://localhost:3000/mcp-test` and copy the temporary access token.
+3. Start MCP Inspector:
 
    ```bash
    npx @modelcontextprotocol/inspector@latest
    ```
 
-4. Add a Streamable HTTP server at `http://localhost:3000/mcp` with `Authorization: Bearer YOUR_COPIED_TOKEN`.
-5. Test authentication, tool inputs, tool results, and write approval behaviour.
+4. Add a **Streamable HTTP** server at `http://localhost:3000/mcp`.
+5. Add `Authorization: Bearer YOUR_COPIED_TOKEN` and test the read and write tools.
 
-For a remote client, expose the local server through HTTPS with `ngrok http 3000` and use the ngrok URL plus `/mcp`. Treat copied tokens like passwords; do not commit or share them.
+For a remote HTTPS client during development, use `ngrok http 3000` and configure the ngrok URL in Supabase's redirect allowlist. Treat the copied token as a password.
+
+## Barcode lookup
+
+Barcode nutrition is sourced from Open Food Facts. Product records can be incomplete, so users can correct the values and save an ingredient for later reuse. The lookup route requires an active Eats session, limits the request to a valid numeric barcode, caches public product data, and applies an upstream timeout.
+
+## Deploy to Vercel
+
+1. Import the repository into Vercel using the detected Next.js settings.
+2. Add the three environment variables listed above.
+3. Set `NEXT_PUBLIC_SITE_URL` to the final deployment URL.
+4. Add that URL to Supabase's Site URL and redirect allowlist.
+5. Open the deployed site in Safari and choose **Share → Add to Home Screen** to install Eats as a PWA.
 
 ## Security
 
-Supabase Row Level Security is enabled for profiles, food entries, ingredients, meals, meal ingredients, routines, and routine meals. Authenticated users can only access rows associated with their own account.
+- RLS protects all application tables by account ownership.
+- MCP and reviewed-meal endpoints validate a Supabase bearer token before database work.
+- Barcode lookups require an authenticated user, cache public responses, time out after five seconds, and relay only selected fields.
+- Never commit `.env.local`, access tokens, Supabase secrets, or service-role keys.
+- For production abuse protection, configure a durable per-user/IP rate limit at the Vercel Firewall/WAF or a shared rate-limit service.
 
-The MCP and reviewed-meal endpoints validate a supplied Supabase bearer token before querying or inserting data.
+## Useful commands
 
-Never expose a Supabase secret key in client-side code or commit environment files containing credentials.
+```bash
+npm run dev
+npm run build
+npm start
+npm audit --omit=dev --audit-level=high
+```
