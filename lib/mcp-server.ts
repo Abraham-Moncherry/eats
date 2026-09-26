@@ -4,7 +4,7 @@ import { z } from "zod";
 
 type Macros = { calories: number; protein: number; carbohydrates: number; fat: number };
 type IngredientRow = { id: string; name: string; brand: string | null; barcode?: string | null; serving_amount: number; serving_unit: string; calories: number; protein: number; carbohydrates: number; fat: number; source?: string };
-type MealIngredientRow = { amount: number; unit: string; ingredients: IngredientRow | null };
+type MealIngredientRow = { id?: string; amount: number; unit: string; ingredients: IngredientRow | null };
 type MealRow = { id: string; name: string; notes: string | null; meal_ingredients: MealIngredientRow[] };
 
 const emptyMacros = (): Macros => ({ calories: 0, protein: 0, carbohydrates: 0, fat: 0 });
@@ -198,12 +198,51 @@ export function createEatsMcpServer(db: SupabaseClient, userId: string) {
     inputSchema: { search: z.string().trim().max(100).optional().describe("Optional meal-name search") },
     annotations: readOnly,
   }, async ({ search }) => {
-    let query = db.from("meals").select("id,name,notes,meal_ingredients(id,amount,unit,ingredients(name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat))").order("name");
+    let query = db.from("meals").select("id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat))").order("name");
     if (search) query = query.ilike("name", `%${search}%`);
     const { data, error } = await query;
     if (error) return failure(`Could not load meals: ${error.message}`);
     const meals = ((data ?? []) as unknown as MealRow[]).map((meal) => ({ ...meal, nutrition: mealMacros(meal) }));
     return success({ count: meals.length, meals });
+  });
+
+  server.registerTool("update_saved_meal_ingredient", {
+    title: "Edit an ingredient in a saved meal",
+    description: "Change an ingredient amount or unit in one saved meal. Call list_meals first to obtain the exact meal ID and meal-ingredient ID, then confirm the requested change before editing. Use this to change a Protein Shake from 500 ml to 400 ml of milk for future logs.",
+    inputSchema: {
+      meal_id: z.string().uuid().describe("Exact saved meal ID returned by list_meals"),
+      meal_ingredient_id: z.string().uuid().describe("Exact meal-ingredient ID returned inside list_meals"),
+      amount: z.number().positive().max(100_000).optional().describe("Replacement ingredient amount"),
+      unit: unitInput.optional().describe("Replacement unit"),
+    },
+    annotations: writeOnly,
+  }, async ({ meal_id, meal_ingredient_id, amount, unit }) => {
+    if (amount === undefined && unit === undefined) return failure("Provide a replacement amount, unit, or both.");
+    const { data: existing, error: lookupError } = await db.from("meal_ingredients")
+      .select("id,meal_id")
+      .eq("id", meal_ingredient_id)
+      .eq("meal_id", meal_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (lookupError) return failure(`Could not load saved-meal ingredient: ${lookupError.message}`);
+    if (!existing) return failure("That ingredient was not found in this saved meal.");
+    const changes: Record<string, string | number> = {};
+    if (amount !== undefined) changes.amount = amount;
+    if (unit !== undefined) changes.unit = unit;
+    const { error: updateError } = await db.from("meal_ingredients")
+      .update(changes)
+      .eq("id", meal_ingredient_id)
+      .eq("meal_id", meal_id)
+      .eq("user_id", userId);
+    if (updateError) return failure(`Could not update saved-meal ingredient: ${updateError.message}`);
+    const { data: meal, error: mealError } = await db.from("meals")
+      .select("id,name,notes,meal_ingredients(id,amount,unit,ingredients(id,name,brand,serving_amount,serving_unit,calories,protein,carbohydrates,fat))")
+      .eq("id", meal_id)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (mealError || !meal) return failure(`Ingredient updated, but could not load the saved meal: ${mealError?.message ?? "Meal not found"}`);
+    const updatedMeal = meal as unknown as MealRow;
+    return success({ updated: true, meal: { ...updatedMeal, nutrition: mealMacros(updatedMeal) } });
   });
 
   server.registerTool("list_ingredients", {

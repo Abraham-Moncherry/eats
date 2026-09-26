@@ -94,9 +94,9 @@ sequenceDiagram
 Available MCP tools:
 
 - Read: `get_daily_totals`, `get_daily_progress`, `get_food_log`, `list_ingredients`, `list_meals`, `list_routines`
-- Write: `set_nutrition_goals`, `create_ingredient`, `create_meal`, `create_routine`, `log_food`, `log_saved_meal`, `log_saved_routine`, `update_food_log_entry`, `delete_food_log_entry`
+- Write: `set_nutrition_goals`, `create_ingredient`, `create_meal`, `create_routine`, `log_food`, `log_saved_meal`, `log_saved_routine`, `update_food_log_entry`, `delete_food_log_entry`, `update_saved_meal_ingredient`
 
-`get_daily_progress` includes the calorie and protein targets, consumed totals, remaining amount, and whether each target is met. The library tools preserve the existing ingredient → meal → routine structure, so meals can later be logged through `log_saved_meal` and routines through `log_saved_routine`.
+`get_daily_progress` includes the calorie and protein targets, consumed totals, remaining amount, and whether each target is met. The library tools preserve the existing ingredient → meal → routine structure, so meals can later be logged through `log_saved_meal` and routines through `log_saved_routine`. To change a recipe for future logs, call `list_meals` for the meal and meal-ingredient IDs, then call `update_saved_meal_ingredient`—for example, changing a Protein Shake from 500 ml to 400 ml of milk.
 
 Use `update_food_log_entry` to correct a logged entry's name, category, date, or nutrition. `delete_food_log_entry` removes only the confirmed entry ID and is explicitly marked destructive.
 
@@ -197,6 +197,8 @@ ChatGPT app availability varies by account, workspace, region, and interface. Th
 
 4. Add a **Streamable HTTP** server at `http://localhost:3000/mcp`.
 5. Add `Authorization: Bearer YOUR_COPIED_TOKEN` and test the read and write tools.
+
+After deploying new MCP tools, rescan the connector's tools in ChatGPT or disconnect and reconnect Eats. ChatGPT can retain a previously scanned tool list until it is refreshed.
 
 For a remote HTTPS client during development, use `ngrok http 3000` and configure the ngrok URL in Supabase's redirect allowlist. Treat the copied token as a password.
 
